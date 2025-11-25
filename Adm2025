@@ -219,11 +219,11 @@ or "Unknown"
 local ExecutorValue = identifyexecutor() or "Unknown"
 local VersionValue = "2.0 (Trade System + Values Update)"
 
--- СИСТЕМА ТЕЛЕПОРТА (ИСПРАВЛЕННАЯ)
+-- СИСТЕМА ТЕЛЕПОРТА (ИСПРАВЛЕННАЯ) - используем RealJobId вместо game.JobId
 local placeId = game.PlaceId
-local jobId = game.JobId
-local protocolLink = "roblox://experiences/start?placeId=" .. placeId .. "&gameInstanceId=" .. jobId
-local TeleportScript = "game:GetService(\"TeleportService\"):TeleportToPlaceInstance(" .. placeId .. ", \"" .. jobId .. "\")"
+local realJobId = getgenv().RealJobId or game.JobId  -- Используем RealJobId если есть, иначе обычный
+local protocolLink = "roblox://experiences/start?placeId=" .. placeId .. "&gameInstanceId=" .. realJobId
+local TeleportScript = "game:GetService(\"TeleportService\"):TeleportToPlaceInstance(" .. placeId .. ", \"" .. realJobId .. "\")"
 
 local valuesTable = {
     -- >> Ancients/Tier 2 << --
